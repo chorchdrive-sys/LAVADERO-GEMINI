@@ -1,0 +1,645 @@
+import { useState, useEffect, useRef } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore, doc, setDoc, getDoc, collection,
+  addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
+  updateDoc, query, where
+} from "firebase/firestore";
+
+// ═══════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN DE FIREBASE OFICIAL (SOFÍA LAVADOS)
+// ═══════════════════════════════════════════════════════════════
+const FB = {
+  apiKey:            "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
+  authDomain:        "sofia-lavados-99231.firebaseapp.com",
+  projectId:         "sofia-lavados-99231",
+  storageBucket:     "sofia-lavados-99231.firebasestorage.app",
+  messagingSenderId: "738758410354",
+  appId:             "1:738758410354:web:0c07ee6f2906d8add402eb",
+};
+
+const app = initializeApp(FB);
+const db = getFirestore(app);
+
+// ═══════════════════════════════════════════════════════════════
+//  CONSTANTES DE NEGOCIO Y CONFIGURACIÓN BASE
+// ═══════════════════════════════════════════════════════════════
+const BASE_LAT  = -34.5128; // Alberdi 1620, Olivos
+const BASE_LNG  = -58.4985;
+
+const FRANJAS = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
+
+const TAMANOS_DEFAULT = [
+  { id: "chico",     label: "Chico",     precio: 25000 },
+  { id: "mediano",   label: "Mediano",   precio: 28000 },
+  { id: "camioneta", label: "Camioneta", precio: 32000 },
+];
+
+const STAFF_SEED = [
+  {nombre:"Jhony",     transporte:"moto", color:"#22d3ee", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Sergio",    transporte:"moto", color:"#0ea5e9", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Alexander", transporte:"moto", color:"#38bdf8", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Maxi",      transporte:"moto", color:"#7dd3fc", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Rene",      transporte:"moto", color:"#06b6d4", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Brandon",   transporte:"moto", color:"#67e8f9", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Jorge",     transporte:"moto", color:"#a5f3fc", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Emiliano",  transporte:"moto", color:"#2dd4bf", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Gaby",      transporte:"moto", color:"#5eead4", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Javi",      transporte:"moto", color:"#99f6e4", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Franco",    transporte:"moto", color:"#34d399", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Fede",      transporte:"moto", color:"#6ee7b7", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Elias",     transporte:"moto", color:"#a7f3d0", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Alvaro",    transporte:"bici", color:"#c084fc", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Nestor",    transporte:"bici", color:"#d8b4fe", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Matias",    transporte:"bici", color:"#e879f9", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Luis",      transporte:"bici", color:"#f0abfc", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Bruno",     transporte:"bici", color:"#a78bfa", whatsapp:true,  rol:"lavador", especial:""},
+  {nombre:"Nico Alto", transporte:"bici", color:"#fbbf24", whatsapp:true,  rol:"lavador", especial:"rapido"},
+  {nombre:"Hernán",    transporte:"bici", color:"#f87171", whatsapp:false, rol:"lavador", especial:"avisar_presencia"},
+  {nombre:"Gastón",    transporte:"bici", color:"#fb923c", whatsapp:false, rol:"lavador", especial:"llamar_telefono"},
+];
+
+const BARRIOS_INICIALES = {
+  "olivos":"OLI", "martinez":"MAR", "florida":"FLO", "san isidro":"SIS",
+  "acassuso":"ACA", "la lucila":"LAL", "boulogne":"BOU", "vicente lopez":"VLO",
+  "munro":"MUN", "villa adelina":"VAD", "beccar":"BEC"
+};
+
+const MOTIVOS_DESCUENTO = [
+  "Error de cambio", "Descuento por queja", "Lavado gratis (compensación)", "Cliente no pagó (deuda)", "Otro"
+];
+
+const MOTIVOS_OPERACION = [
+  "Préstamo (lavador recibe)", "Adelanto de sueldo (lavador recibe)", "Devolución de préstamo (lavador paga)"
+];
+
+// Memoria de caché global para Nominatim para optimizar velocidad y evitar bloqueos
+const _geocache = {};
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS AUXILIARES (FECHAS, PRECIOS, DISTANCIAS REALES)
+// ═══════════════════════════════════════════════════════════════
+const obtenerHoyISO = () => {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ar = new Date(utc - 3 * 60 * 60000);
+  const y = ar.getFullYear();
+  const m = String(ar.getMonth()+1).padStart(2,"0");
+  const d = String(ar.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+};
+
+const formatP = n => "$" + Number(n||0).toLocaleString("es-AR");
+
+// Fórmula matemática Haversine para calcular distancia real entre coordenadas
+function calcularHaversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Convierte coordenadas a cuadras reales (1 km = 10 cuadras)
+function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
+  const km = calcularHaversineKm(lat1, lon1, lat2, lon2);
+  return Math.round(km * 10);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════
+export default function App() {
+  const [tab, setTab] = useState("grilla");
+  const [jornadaEstado, setJornadaEstado] = useState("cerrado"); // abierto, lluvia, cerrado
+  const [modoFlexible, setModoFlexible] = useState(false);
+  const [lavadoresRetenidos, setLavadoresRetenidos] = useState([]);
+
+  // Colecciones de datos
+  const [staff, setStaff] = useState([]);
+  const [turnos, setTurnos] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [operacionesStaff, setOperacionesStaff] = useState([]);
+
+  // Filtros del Módulo Contable de Jorge
+  const [rangoPeriodo, setRangoPeriodo] = useState("semana"); // hoy, semana, mes
+  const [filtroLavadorCierre, setFiltroLavadorCierre] = useState("todos");
+
+  // Estado para altas de turnos y modales
+  const [modalCobroActivo, setModalCobroActivo] = useState(null);
+  const [modalStaffActivo, setModalStaffActivo] = useState(null);
+  const [geocodificando, setGeocodificando] = useState(false);
+  
+  // Formulario nuevo turno
+  const [ntCliente, setNtCliente] = useState("");
+  const [ntDireccion, setNtDireccion] = useState("");
+  const [ntBarrio, setNtBarrio] = useState("Olivos");
+  const [ntFranja, setNtFranja] = useState("09:00");
+  const [ntTamano, setNtTamano] = useState("mediano");
+  const [ntLavador, setNtLavador] = useState("");
+  const [ntMetodo, setNtMetodo] = useState("efectivo");
+
+  useEffect(() => {
+    // Sincronización en tiempo real Firebase Firestore
+    const unsubStaff = onSnapshot(collection(db, "staff"), snap => {
+      if(snap.empty) { STAFF_SEED.forEach(s => addDoc(collection(db, "staff"), s)); }
+      else { setStaff(snap.docs.map(d => ({id:d.id, ...d.data()}))); }
+    });
+    const unsubTurnos = onSnapshot(collection(db, "turnos"), snap => {
+      setTurnos(snap.docs.map(d => ({id:d.id, ...d.data()})));
+    });
+    const unsubClientes = onSnapshot(collection(db, "clientes"), snap => {
+      setClientes(snap.docs.map(d => ({id:d.id, ...d.data()})));
+    });
+    const unsubOps = onSnapshot(collection(db, "operacionesStaff"), snap => {
+      setOperacionesStaff(snap.docs.map(d => ({id:d.id, ...d.data()})));
+    });
+    const cargarJornada = async () => {
+      const docJ = await getDoc(doc(db, "config", "jornada"));
+      if(docJ.exists()) {
+        const d = docJ.data();
+        setJornadaEstado(d.estado || "cerrado");
+        setModoFlexible(d.modoFlexible || false);
+        setLavadoresRetenidos(d.lavadoresRetenidos || []);
+      }
+    };
+    cargarJornada();
+    return () => { unsubStaff(); unsubTurnos(); unsubClientes(); unsubOps(); };
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════
+  //  FUNCIONES DEL MODO LLUVIA Y JORNADA
+  // ═══════════════════════════════════════════════════════════════
+  const cambiarEstadoJornada = async (nuevoEstado) => {
+    setJornadaEstado(nuevoEstado);
+    let flex = false;
+    let retenidos = [];
+    if(nuevoEstado === "lluvia") {
+      flex = true; // Activa semáforo geográfico flexible automáticamente
+      retenidos = staff.map(s => s.id);
+    }
+    setModoFlexible(flex);
+    setLavadoresRetenidos(retenidos);
+    await setDoc(doc(db, "config", "jornada"), { estado: nuevoEstado, modoFlexible: flex, lavadoresRetenidos: retenidos }, {merge:true});
+  };
+
+  const ejecutarReanudarClima = async () => {
+    setJornadaEstado("abierto");
+    setModoFlexible(false);
+    await setDoc(doc(db, "config", "jornada"), { estado: "abierto", modoFlexible: false, lavadoresRetenidos: lavadoresRetenidos }, {merge:true});
+  };
+
+  const switchLavadorRetenido = async (id) => {
+    let aux = [...lavadoresRetenidos];
+    if(aux.includes(id)) { aux = aux.filter(x => x !== id); }
+    else { aux.push(id); }
+    setLavadoresRetenidos(aux);
+    await setDoc(doc(db, "config", "jornada"), { lavadoresRetenidos: aux }, {merge:true});
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  //  GEOLOCALIZACIÓN REAL (NOMINATIM API) + HA VERSINE SEMÁFORO
+  // ═══════════════════════════════════════════════════════════════
+  const procesarAltaTurno = async () => {
+    if(!ntCliente || !ntDireccion || !ntLavador) { alert("Completar datos obligatorios."); return; }
+    setGeocodificando(true);
+    
+    let finalLat = BASE_LAT;
+    let finalLng = BASE_LNG;
+    const queryDireccion = `${ntDireccion}, ${ntBarrio}, Buenos Aires, Argentina`;
+
+    // Consulta con sistema de Caché interno
+    if(_geocache[queryDireccion]) {
+      finalLat = _geocache[queryDireccion].lat;
+      finalLng = _geocache[queryDireccion].lng;
+    } else {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryDireccion)}&limit=1`, {
+          headers: { "User-Agent": "SofiaLavados_v5_System", "Accept-Language": "es" }
+        });
+        const data = await res.json();
+        if(data && data.length > 0) {
+          finalLat = parseFloat(data[0].lat);
+          finalLng = parseFloat(data[0].lon);
+          _geocache[queryDireccion] = { lat: finalLat, lng: finalLng };
+        }
+      } catch (e) { console.error("Error geocodificación Nominatim:", e); }
+    }
+
+    // Calcular distancia respecto a base u último turno del lavador
+    const turnosChicoHoy = turnos.filter(t => t.staffId === ntLavador && t.fecha === obtenerHoyISO() && t.estado !== "cancelado");
+    let latOrigen = BASE_LAT;
+    let lngOrigen = BASE_LNG;
+    if(turnosChicoHoy.length > 0) {
+      const u = turnosChicoHoy[turnosChicoHoy.length - 1];
+      if(u.lat && u.lng) { latOrigen = u.lat; lngOrigen = u.lng; }
+    }
+
+    const cuadras = calcularCuadrasReales(latOrigen, lngOrigen, finalLat, finalLng);
+    const lavObj = staff.find(s => s.id === ntLavador);
+    const transporte = lavObj ? lavObj.transporte : "moto";
+
+    // Reglas exactas de Semáforo Geográfico matemático
+    let colorSemaforo = "🟢 OK";
+    let recargo = 0;
+    
+    if(transporte === "moto") {
+      if(cuadras > 35) { colorSemaforo = "🟣 FZ"; recargo = 0.20; }
+      else if(cuadras > 25) colorSemaforo = "🟡 LEJOS";
+    } else if(transporte === "bici") {
+      if(cuadras > 21) { colorSemaforo = "🟣 FZ"; recargo = 0.20; }
+      else if(cuadras > 15) colorSemaforo = "🟡 LEJOS";
+    } else {
+      if(cuadras > 10) { colorSemaforo = "🟣 FZ"; recargo = 0.20; }
+      else if(cuadras > 7) colorSemaforo = "🟡 LEJOS";
+    }
+
+    if(modoFlexible && colorSemaforo !== "🟢 OK") {
+      colorSemaforo = "🟣 FZ OK (Flexible)";
+    }
+
+    const precioBase = TAMANOS_DEFAULT.find(t=>t.id===ntTamano).precio;
+    const precioFinal = precioBase + (precioBase * recargo);
+
+    // Identificador de barrio dinámico
+    const codBarrio = BARRIOS_INICIALES[ntBarrio.toLowerCase()] || "GEN";
+
+    await addDoc(collection(db, "turnos"), {
+      clienteNombre: ntCliente,
+      direccion: ntDireccion,
+      barrio: ntBarrio,
+      codBarrio,
+      franja: ntFranja,
+      tamano: ntTamano,
+      staffId: ntLavador,
+      staffNombre: lavObj ? lavObj.nombre : "",
+      metodo: ntMetodo,
+      precio: precioFinal,
+      cuadras,
+      semaforo: colorSemaforo,
+      lat: finalLat,
+      lng: finalLng,
+      fecha: obtenerHoyISO(),
+      estado: "confirmado",
+      estadoPago: "💰 Pendiente"
+    });
+
+    setNtCliente(""); setNtDireccion(""); setGeocodificando(false);
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  //  ACCIONES FINANCIERAS Y PROCESAMIENTO CONTABLE
+  // ═══════════════════════════════════════════════════════════════
+  const ejecutarCobroFinal = async (turno, importeReal, dif, motivo, destino) => {
+    let estPago = "💵 Cobrado (sin rendir)";
+    if(importeReal === 0 || (dif < 0 && destino === "deuda")) {
+      estPago = "🔴 Cliente debe";
+    }
+    await updateDoc(doc(db, "turnos", turno.id), {
+      estadoPago: estPago, montoPagado: importeReal, diferencia: dif, motivoDiferencia: motivo, destinoSaldo: destino, fechaCobro: obtenerHoyISO()
+    });
+    setModalCobroActivo(null);
+  };
+
+  const ejecutarMovimientoStaff = async (lavador, monto, tipo) => {
+    await addDoc(collection(db, "operacionesStaff"), {
+      lavadorId: lavador.id, lavadorNombre: lavador.nombre, monto, tipo, fecha: obtenerHoyISO(), timestamp: serverTimestamp()
+    });
+    setModalStaffActivo(null);
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  //  LÓGICA DEL CIERRE SEMANAL (JORGE LIQUIDACIÓN)
+  // ═══════════════════════════════════════════════════════════════
+  const obtenerFechasPeriodo = () => {
+    const list = [obtenerHoyISO()];
+    const limite = rangoPeriodo === "semana" ? 7 : rangoPeriodo === "mes" ? 30 : 1;
+    for(let i = 1; i < limite; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      list.push(d.toISOString().split("T")[0]);
+    }
+    return list;
+  };
+
+  const filtroFechas = obtenerFechasPeriodo();
+  const turnosCierre = turnos.filter(t => filtroFechas.includes(t.fecha) && (filtroLavadorCierre === "todos" || t.staffId === filtroLavadorCierre) && t.estado !== "cancelado");
+  const opsCierre = operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre));
+
+  const liquidacionConsolidada = () => {
+    const data = {};
+    staff.forEach(s => {
+      if(filtroLavadorCierre === "todos" || s.id === filtroLavadorCierre) {
+        if(jornadaEstado === "lluvia" || lavadoresRetenidos.includes(s.id) || lavadoresRetenidos.length === 0) {
+          data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0, propinas: 0 };
+        }
+      }
+    });
+    turnosCierre.forEach(t => {
+      if(data[t.staffId]) {
+        data[t.staffId].comisiones += (t.precio || 0) * 0.50; // Comisión fija 50%
+        if(t.metodo === "efectivo" && t.estadoPago === "💵 Cobrado (sin rendir)") {
+          data[t.staffId].efectivoMano += (t.montoPagado || 0);
+        }
+        if(t.destinoSaldo === "propina" && t.diferencia > 0) {
+          data[t.staffId].propinas += t.diferencia;
+        }
+      }
+    });
+    opsCierre.forEach(o => {
+      if(data[o.lavadorId]) {
+        if(o.tipo.includes("recibe")) data[o.lavadorId].adelantos += o.monto;
+        else data[o.lavadorId].adelantos -= o.monto;
+      }
+    });
+    return Object.values(data);
+  };
+
+  const listadoJorgeLiq = liquidacionConsolidada();
+  const totalMP = turnosCierre.filter(t => t.metodo === "mp" && t.estadoPago?.includes("Cobrado")).reduce((a,b)=>a+(b.montoPagado||0),0);
+  const totalEF = turnosCierre.filter(t => t.metodo === "efectivo" && t.estadoPago?.includes("Cobrado")).reduce((a,b)=>a+(b.montoPagado||0),0);
+  const totalPendientes = turnosCierre.filter(t => t.estadoPago === "💰 Pendiente").length;
+
+  return (
+    <div className="bg-[#040a14] text-slate-200 min-h-screen font-sans p-4 antialiased">
+      
+      {/* CONTROL DE CABECERA Y JORNADA OPERATIVA */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 mb-4 gap-4">
+        <div>
+          <h1 className="text-xl font-black text-cyan-400 tracking-tight">🚿 SOFÍA LAVADOS — SISTEMA v5.0</h1>
+          <p className="text-xs text-slate-500">Módulo de Logística Georeferenciada y Cierre Jorge</p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center bg-[#0b1220] p-2 rounded-xl border border-slate-800">
+          <span className="text-[10px] font-bold text-slate-400 px-2">JORNADA:</span>
+          {jornadaEstado === "cerrado" ? (
+            <button className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("abierto")}>🟢 Abrir Día</button>
+          ) : (
+            <>
+              {jornadaEstado === "abierto" && <button className="bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("lluvia")}>🌧️ Activar Modo Lluvia</button>}
+              {jornadaEstado === "lluvia" && <button className="bg-amber-500 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg" onClick={ejecutarReanudarClima}>⛅ Reanudar Actividad</button>}
+              <button className="bg-rose-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("cerrado")}>🔒 Cerrar Día</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* PESTAÑAS DE NAVEGACIÓN */}
+      <div className="flex gap-2 overflow-x-auto border-b border-slate-900 pb-2 mb-4 scrollbar-none">
+        <button onClick={() => setTab("grilla")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab==="grilla"?"bg-cyan-600 text-white":"bg-transparent text-slate-400"}`}>📅 Agenda & Turnos</button>
+        <button onClick={() => setTab("cierre")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab==="cierre"?"bg-cyan-600 text-white":"bg-transparent text-slate-400"}`}>📊 Cierre de Caja (Jorge)</button>
+        <button onClick={() => setTab("staff")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab==="staff"?"bg-cyan-600 text-white":"bg-transparent text-slate-400"}`}>🏍️ Gestión de Staff</button>
+      </div>
+
+      {/* PESTAÑA: GRILLA / CARGA AUTOMÁTICA */}
+      {tab === "grilla" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          
+          {/* PANEL DE ALTA CON NOMINATIM */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 h-fit">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">⚡ Agendar Nuevo Turno Inteligente</h2>
+            <div className="flex flex-col gap-2.5">
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">CLIENTE</label>
+                <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none focus:border-cyan-500" value={ntCliente} onChange={e=>setNtCliente(e.target.value)} placeholder="Nombre del cliente" />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">DIRECCIÓN DE TEXTO REAL</label>
+                <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none focus:border-cyan-500" value={ntDireccion} onChange={e=>setNtDireccion(e.target.value)} placeholder="Ej: Av. Maipú 2100" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">LOCALIDAD / BARRIO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntBarrio} onChange={e=>setNtBarrio(e.target.value)}>
+                    <option value="Olivos">Olivos</option><option value="Martínez">Martínez</option><option value="Florida">Florida</option><option value="San Isidro">San Isidro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">BLOQUE HORARIO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntFranja} onChange={e=>setNtFranja(e.target.value)}>
+                    {FRANJAS.map(f => <option key={f} value={f}>{f} hs</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">TAMAÑO VEHÍCULO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntTamano} onChange={e=>setNtTamano(e.target.value)}>
+                    {TAMANOS_DEFAULT.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">LAVADOR ASIGNADO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntLavador} onChange={e=>setNtLavador(e.target.value)}>
+                    <option value="">Seleccionar lavador...</option>
+                    {staff.filter(s => jornadaEstado !== "lluvia" || lavadoresRetenidos.includes(s.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">PROPUESTA DE PAGO</label>
+                <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntMetodo} onChange={e=>setNtMetodo(e.target.value)}>
+                  <option value="efectivo">Efectivo en mano</option>
+                  <option value="mp">Mercado Pago (Digital)</option>
+                </select>
+              </div>
+              <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded-lg mt-2 transition-colors disabled:opacity-50" onClick={procesarAltaTurno} disabled={geocodificando}>
+                {geocodificando ? "Georeferenciando dirección..." : "Validar Distancia y Guardar"}
+              </button>
+            </div>
+          </div>
+
+          {/* VISTA DE LA GRILLA DE TURNOS CARGADOS */}
+          <div className="lg:col-span-2 bg-[#0b1220] p-4 rounded-xl border border-slate-800">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">📋 Monitor Operativo de Turnos</h2>
+            
+            {jornadaEstado === "lluvia" && (
+              <div className="bg-sky-950/40 border border-sky-800/60 p-3 rounded-lg mb-3 text-xs text-sky-300">
+                🌧️ <strong>Estado de Espera Activo:</strong> El semáforo geográfico opera de forma flexible para reubicaciones directas. La administración sigue permitiendo cargas sin bloquear agendas futuras.
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {turnos.filter(t => t.fecha === obtenerHoyISO()).length === 0 ? (
+                <div className="text-center text-xs text-slate-600 py-8">No hay turnos registrados en la jornada de hoy.</div>
+              ) : (
+                turnos.filter(t => t.fecha === obtenerHoyISO()).map(t => (
+                  <div key={t.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white">{t.franja} hs</span>
+                        <span className="bg-slate-800 text-[9px] text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">{t.codBarrio}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.semaforo?.includes("OK")?"bg-emerald-950 text-emerald-400":"bg-amber-950 text-amber-400"}`}>{t.semaforo}</span>
+                      </div>
+                      <div className="text-xs font-medium text-slate-300 mt-1">{t.clienteNombre} — <span className="text-slate-500">{t.direccion}</span></div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Asignado: <strong>{t.staffNombre}</strong> ({t.cuadras} cuadras calculadas)</div>
+                    </div>
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <div className="text-xs font-black text-cyan-400">{formatP(t.precio)}</div>
+                      <button className={`text-[10px] font-bold px-2 py-1 rounded border ${t.estadoPago?.includes("Cobrado")?"bg-emerald-900/20 border-emerald-800 text-emerald-400":"bg-amber-900/20 border-amber-800 text-amber-400"}`} onClick={() => setModalCobroActivo(t)}>
+                        {t.estadoPago || "💰 Registrar Pago"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PESTAÑA: CIERRE CONTABLE (EXCLUSIVA JORGE) */}
+      {tab === "cierre" && (
+        <div className="space-y-4">
+          
+          {/* BOTONES DE RANGO Y FILTROS */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex gap-1.5 bg-[#040a14] p-1 rounded-lg border border-slate-800 w-fit">
+              <button onClick={()=>setRangoPeriodo("hoy")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo==="hoy"?"bg-slate-800 text-white":"text-slate-500"}`}>Hoy</button>
+              <button onClick={()=>setRangoPeriodo("semana")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo==="semana"?"bg-slate-800 text-white":"text-slate-500"}`}>Semana (7d)</button>
+              <button onClick={()=>setRangoPeriodo("mes")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo==="mes"?"bg-slate-800 text-white":"text-slate-500"}`}>Mes (30d)</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400">LIQUIDAR DE UN TIRÓN:</span>
+              <select className="bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={filtroLavadorCierre} onChange={e=>setFiltroLavadorCierre(e.target.value)}>
+                <option value="todos">Todos los lavadores</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* TARJETAS DE TOTALES BRUTOS */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Efectivo</div>
+              <div className="text-xl font-black text-emerald-400 mt-1">{formatP(totalEF)}</div>
+            </div>
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-cyan-900/40 bg-gradient-to-br from-cyan-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Mercado Pago</div>
+              <div className="text-xl font-black text-cyan-400 mt-1">{formatP(totalMP)}</div>
+            </div>
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-amber-900/40 bg-gradient-to-br from-amber-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Turnos sin Cobrar Pendientes</div>
+              <div className="text-xl font-black text-amber-400 mt-1">{totalPendientes} servicios</div>
+            </div>
+          </div>
+
+          {/* TABLA DE LIQUIDACIÓN INDIVIDUAL (JORGE) */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 overflow-x-auto">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">📊 Planilla de Saldos y Comisiones Neto</h2>
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-500 font-bold">
+                  <th className="pb-2">LAVADOR</th>
+                  <th className="pb-2">COMISIONES (50%)</th>
+                  <th className="pb-2">EFECTIVO EN MANO</th>
+                  <th className="pb-2">ADELANTOS / VALES</th>
+                  <th className="pb-2 text-right">SALDO A TRANSFERIR (MP)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listadoJorgeLiq.map(row => {
+                  const saldoFinalATransferir = row.comisiones - row.efectivoMano - row.adelantos;
+                  return (
+                    <tr key={row.id} className="border-b border-slate-900 hover:bg-slate-950/40">
+                      <td className="py-2.5 font-bold text-white">{row.nombre}</td>
+                      <td className="py-2.5 text-slate-300">{formatP(row.comisiones)}</td>
+                      <td className="py-2.5 text-rose-400">{formatP(row.efectivoMano)}</td>
+                      <td className="py-2.5 text-amber-400">{formatP(row.adelantos)}</td>
+                      <td className={`py-2.5 text-right font-black ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-rose-500"}`}>
+                        {formatP(saldoFinalATransferir)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PESTAÑA: CONFIGURACIÓN DE STAFF */}
+      {tab === "staff" && (
+        <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800">
+          <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">🏍️ Registro de Estado Personal & Adelantos</h2>
+          
+          {jornadaEstado === "lluvia" && (
+            <p className="text-[11px] text-amber-400 mb-3">⚠️ Tildá a los lavadores que <strong>se quedaron en base</strong> bajo temporal para recalcular la disponibilidad de turnos.</p>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {staff.map(s => (
+              <div key={s.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  {jornadaEstado === "lluvia" && (
+                    <input type="checkbox" checked={lavadoresRetenidos.includes(s.id)} onChange={() => switchLavadorRetenido(s.id)} className="w-4 h-4 cursor-pointer accent-cyan-500" />
+                  )}
+                  <div>
+                    <strong className="text-sm text-white" style={{color: s.color}}>{s.nombre}</strong>
+                    <div className="text-[10px] text-slate-500 uppercase font-mono">{s.transporte} {s.especial ? `• Alerta: ${s.especial}` : ""}</div>
+                  </div>
+                </div>
+                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] px-3 py-1.5 rounded-lg" onClick={() => setModalStaffActivo(s)}>
+                  💸 Registrar Vale / Adelanto
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL COBRO INTERACTIVO INTELIGENTE */}
+      {modalCobroActivo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={(e) => e.target === e.currentTarget && setModalCobroActivo(null)}>
+          <div className="bg-[#0b1220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4">
+            <h3 className="text-sm font-bold text-white">💰 Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
+            
+            <div className="bg-[#040a14] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+              <span className="text-slate-400">Esperado Original:</span>
+              <strong className="text-cyan-400 text-sm font-black">{formatP(modalCobroActivo.precio)}</strong>
+            </div>
+
+            {/* Selector interactivo para asentar diferencias directamente */}
+            <div className="space-y-2">
+              <button className="w-full bg-emerald-600 font-bold text-xs py-2 rounded-lg text-white" onClick={() => ejecutarCobroFinal(modalCobroActivo, modalCobroActivo.precio, 0, "", "caja")}>
+                Cobrado Importe Exacto
+              </button>
+              <button className="w-full bg-amber-600 font-bold text-xs py-2 rounded-lg text-white" onClick={() => ejecutarCobroFinal(modalCobroActivo, modalCobroActivo.precio + 2000, 2000, "Monto extra", "propina")}>
+                Registrar Excedente como Propina Lavador (+ $2.000)
+              </button>
+              <button className="w-full bg-rose-600 font-bold text-xs py-2 rounded-lg text-white" onClick={() => ejecutarCobroFinal(modalCobroActivo, 0, -modalCobroActivo.precio, "Cliente no pagó (deuda)", "deuda")}>
+                Registrar Faltante Completo como Deuda Cliente
+              </button>
+            </div>
+
+            <button className="w-full border border-slate-800 text-slate-500 font-bold text-xs py-2 rounded-lg text-center" onClick={() => setModalCobroActivo(null)}>Cerrar Ventana</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ADELANTOS INTERACTIVO STAFF */}
+      {modalStaffActivo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && setModalStaffActivo(null)}>
+          <div className="bg-[#0b1220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4">
+            <h3 className="text-sm font-bold text-white">💸 Asentar Vale: {modalStaffActivo.nombre}</h3>
+            
+            <div className="space-y-2">
+              <button className="w-full bg-amber-600 font-bold text-xs py-2 rounded-lg text-white" onClick={() => ejecutarMovimientoStaff(modalStaffActivo, 5000, "Préstamo (lavador recibe)")}>
+                Otorgar Adelanto de $5.000 (Descuenta en Cierre Jorge)
+              </button>
+              <button className="w-full bg-amber-700 font-bold text-xs py-2 rounded-lg text-white" onClick={() => ejecutarMovimientoStaff(modalStaffActivo, 10000, "Préstamo (lavador recibe)")}>
+                Otorgar Adelanto de $10.000 (Descuenta en Cierre Jorge)
+              </button>
+            </div>
+
+            <button className="w-full border border-slate-800 text-slate-500 font-bold text-xs py-2 rounded-lg text-center" onClick={() => setModalStaffActivo(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
