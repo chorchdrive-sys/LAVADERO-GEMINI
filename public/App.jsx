@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { initializeApp } from "firebase/app";
+// 1. IMPORTACIONES DIRECTAS DESDE LOS CDNs GLOBALES DE FIREBASE
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
   addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
   updateDoc, query, where
-} from "firebase/firestore";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // CONFIGURACIÓN DE FIREBASE OFICIAL (SOFÍA LAVADOS)
 const FB = {
@@ -61,14 +61,6 @@ const BARRIOS_INICIALES = {
   "munro": "MUN", "villa adelina": "VAD", "beccar": "BEC"
 };
 
-const MOTIVOS_DESCUENTO = [
-  "Error de cambio", "Descuento por queja", "Lavado gratis (compensación)", "Cliente no pagó (deuda)", "Otro"
-];
-
-const MOTIVOS_OPERACION = [
-  "Préstamo (lavador recibe)", "Adelanto de sueldo (lavador recibe)", "Devolución de préstamo (lavador paga)"
-];
-
 const geocache = {};
 
 // HELPERS AUXILIARES (FECHAS, PRECIOS, DISTANCIAS REALES)
@@ -84,7 +76,7 @@ const obtenerHoyISO = () => {
 
 const formatP = n => "$" + Number(n || 0).toLocaleString("es-AR");
 
-// Fórmula matemática Haversine para calcular distancia real entre coordenadas
+// Fórmula matemática Haversine
 function calcularHaversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -96,16 +88,15 @@ function calcularHaversineKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Convierte coordenadas a cuadras reales (1 km = 10 cuadras)
 function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
   const km = calcularHaversineKm(lat1, lon1, lat2, lon2);
   return Math.round(km * 10);
 }
 
-// COMPONENTE PRINCIPAL
-export default function App() {
+// 2. CREAMOS EL COMPONENTE COMO UNA FUNCIÓN COMÚN (EVITAMOS EL EXPORT DEFAULT DIRECTO QUE SE ROMPE)
+function App() {
   const [tab, setTab] = useState("grilla");
-  const [jornadaEstado, setJornadaEstado] = useState("cerrado"); // abierto, lluvia, cerrado
+  const [jornadaEstado, setJornadaEstado] = useState("cerrado"); 
   const [modoFlexible, setModoFlexible] = useState(false);
   const [lavadoresRetenidos, setLavadoresRetenidos] = useState([]);
 
@@ -116,7 +107,7 @@ export default function App() {
   const [operacionesStaff, setOperacionesStaff] = useState([]);
 
   // Filtros del Módulo Contable de Jorge
-  const [rangoPeriodo, setRangoPeriodo] = useState("semana"); // hoy, semana, mes
+  const [rangoPeriodo, setRangoPeriodo] = useState("semana"); 
   const [filtroLavadorCierre, setFiltroLavadorCierre] = useState("todos");
 
   // Estado para altas de turnos y modales
@@ -133,7 +124,7 @@ export default function App() {
   const [ntLavador, setNtLavador] = useState("");
   const [ntMetodo, setNtMetodo] = useState("efectivo");
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Sincronización en tiempo real Firebase Firestore
     const unsubStaff = onSnapshot(collection(db, "staff"), snap => {
       if (snap.empty) { STAFF_SEED.forEach(s => addDoc(collection(db, "staff"), s)); }
@@ -167,13 +158,12 @@ export default function App() {
     return () => { unsubStaff(); unsubTurnos(); unsubClientes(); unsubOps(); };
   }, []);
 
-  // FUNCIONES DEL MODO LLUVIA Y JORNADA
   const cambiarEstadoJornada = async (nuevoEstado) => {
     setJornadaEstado(nuevoEstado);
     let flex = false;
     let retenidos = [];
     if (nuevoEstado === "lluvia") {
-      flex = true; // Activa semáforo geográfico flexible automáticamente
+      flex = true; 
       retenidos = staff.map(s => s.id);
     }
     setModoFlexible(flex);
@@ -195,7 +185,6 @@ export default function App() {
     await setDoc(doc(db, "config", "jornada"), { lavadoresRetenidos: aux }, { merge: true });
   };
 
-  // GEOLOCALIZACIÓN REAL (NOMINATIM API) + HAVERSINE SEMÁFORO
   const procesarAltaTurno = async () => {
     if (!ntCliente || !ntDireccion || !ntLavador) { alert("Completar datos obligatorios."); return; }
     setGeocodificando(true);
@@ -277,7 +266,6 @@ export default function App() {
     setNtCliente(""); setNtDireccion(""); setGeocodificando(false);
   };
 
-  // ACCIONES FINANCIERAS Y PROCESAMIENTO CONTABLE
   const ejecutarCobroFinal = async (turno, importeReal, dif, motivo, destino) => {
     let estPago = "Cobrado (sin rendir)";
     if (importeReal === 0 || (dif < 0 && destino === "deuda")) {
@@ -306,7 +294,6 @@ export default function App() {
     setModalStaffActivo(null);
   };
 
-  // LÓGICA DEL CIERRE SEMANAL (JORGE LIQUIDACIÓN)
   const obtenerFechasPeriodo = () => {
     const list = [obtenerHoyISO()];
     const limite = rangoPeriodo === "semana" ? 7 : rangoPeriodo === "mes" ? 30 : 1;
@@ -320,26 +307,23 @@ export default function App() {
   const filtroFechas = obtenerFechasPeriodo();
 
   const turnosCierre = turnos.filter(t => filtroFechas.includes(t.fecha) && (filtroLavadorCierre === "todos" || t.staffId === filtroLavadorCierre));
-  const opsCierre = operationsStaff => operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre));
 
   const liquidacionConsolidada = () => {
     const data = {};
     
-    // 1. Inicializar personal sin restricciones meteorológicas externas
     staff.forEach(s => {
       if (filtroLavadorCierre === "todos" || s.id === filtroLavadorCierre) {
         data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0, propinas: 0 };
       }
     });
 
-    // 2. Acumular comisiones según método y efectividad real entregada
     turnosCierre.forEach(t => {
       if (data[t.staffId]) {
         const montoBaseComision = (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") 
           ? (t.montoPagado || 0) 
           : (t.precio || 0);
           
-        data[t.staffId].comisiones += montoBaseComision * 0.50; // Comisión fija 50%
+        data[t.staffId].comisiones += montoBaseComision * 0.50; 
         
         if (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") {
           data[t.staffId].efectivoMano += (t.montoPagado || 0);
@@ -350,7 +334,6 @@ export default function App() {
       }
     });
 
-    // 3. Cruzar Vales y Adelantos Financieros
     operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre)).forEach(o => {
       if (data[o.lavadorId]) {
         if (o.tipo.includes("recibe")) { data[o.lavadorId].adelantos += o.monto; }
@@ -370,7 +353,6 @@ export default function App() {
   return (
     <div className="bg-[#040a14] text-slate-200 min-h-screen font-sans p-4 antialiased">
       
-      {/* CONTROL DE CABECERA Y JORNADA OPERATIVA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 mb-4">
         <div>
           <h1 className="text-xl font-black text-cyan-400 tracking-tight">SOFÍA LAVADOS SISTEMA v5.0</h1>
@@ -391,18 +373,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* PESTAÑAS DE NAVEGACIÓN */}
       <div className="flex gap-2 overflow-x-auto border-b border-slate-900 pb-2 mb-4 scrollbar-none">
         <button onClick={() => setTab("grilla")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "grilla" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Turnos</button>
         <button onClick={() => setTab("cierre")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "cierre" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Cierre de Caja</button>
         <button onClick={() => setTab("staff")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "staff" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Personal</button>
       </div>
 
-      {/* PESTAÑA: GRILLA / CARGA AUTOMÁTICA */}
       {tab === "grilla" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          
-          {/* PANEL DE ALTA CON NOMINATIM */}
           <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 h-fit">
             <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Agendar Nuevo Turno Inteligente</h2>
             <div className="flex flex-col gap-2.5">
@@ -460,20 +438,13 @@ export default function App() {
             </div>
           </div>
 
-          {/* VISTA DE LA GRILLA DE TURNOS CARGADOS */}
           <div className="lg:col-span-2 bg-[#0b1220] p-4 rounded-xl border border-slate-800">
             <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Monitor Operativo de Turnos</h2>
-            {jornadaEstado === "lluvia" && (
-              <div className="bg-sky-950/40 border border-sky-800/60 p-3 rounded-lg mb-3 text-xs text-sky-300">
-                <strong>Estado de Espera Activo:</strong> El semáforo geográfico opera de forma flexible para reubicaciones
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              {turnos.filter(t => t.fecha === obtenerHoyISO()).length === 0 ? (
+            {turnos.filter(t => t.fecha === obtenerHoyISO()).length === 0 ? (
                 <div className="text-center text-xs text-slate-600 py-8">No hay turnos registrados en la jornada de hoy.</div>
               ) : (
                 turnos.filter(t => t.fecha === obtenerHoyISO()).map(t => (
-                  <div key={t.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                  <div key={t.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center mb-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-white">{t.franja} hs</span>
@@ -492,16 +463,12 @@ export default function App() {
                   </div>
                 ))
               )}
-            </div>
           </div>
         </div>
       )}
 
-      {/* PESTAÑA: CIERRE CONTABLE (EXCLUSIVA JORGE) */}
       {tab === "cierre" && (
         <div className="space-y-4">
-          
-          {/* BOTONES DE RANGO Y FILTROS */}
           <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
             <div className="flex gap-1.5 bg-[#040a14] p-1 rounded-lg border border-slate-800 w-fit">
               <button onClick={() => setRangoPeriodo("hoy")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "hoy" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Hoy</button>
@@ -517,7 +484,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* TARJETAS DE TOTALES BRUTOS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-[#0b1220] p-4 rounded-xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/10 to-transparent">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Efectivo</div>
@@ -533,7 +499,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* TABLA DE LIQUIDACIÓN INDIVIDUAL (JORGE) */}
           <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 overflow-x-auto">
             <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Planilla de Saldos y Comisiones</h2>
             <table className="w-full text-left text-xs border-collapse">
@@ -567,20 +532,13 @@ export default function App() {
         </div>
       )}
 
-      {/* PESTAÑA: CONFIGURACIÓN DE STAFF */}
       {tab === "staff" && (
         <div className="bg-[#061220] p-4 rounded-xl border border-slate-800">
           <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Registro de Estado Personal & Adelantos</h2>
-          {jornadaEstado === "lluvia" && (
-            <p className="text-[11px] text-amber-400 mb-3">▲ Tildá a los lavadores que <strong>se quedaron en base</strong> tomando la guardia pasiva.</p>
-          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {staff.map(s => (
               <div key={s.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  {jornadaEstado === "lluvia" && (
-                    <input type="checkbox" checked={lavadoresRetenidos.includes(s.id)} onChange={() => switchLavadorRetenido(s.id)} />
-                  )}
                   <div>
                     <span className="text-xs font-bold text-white block">{s.nombre}</span>
                     <span className="text-[10px] text-slate-500 uppercase font-mono">{s.transporte} • {s.rol}</span>
@@ -595,9 +553,8 @@ export default function App() {
         </div>
       )}
 
-      {/* INTERFACES DE MODALES (COBRO Y ADELANTOS STAFF) */}
       {modalCobroActivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={() => setModalCobroActivo(null)}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalCobroActivo(null)}>
           <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white">Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
             <div className="bg-[#040a14] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
@@ -613,7 +570,7 @@ export default function App() {
       )}
 
       {modalStaffActivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={() => setModalStaffActivo(null)}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalStaffActivo(null)}>
           <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white">Registrar Movimiento: {modalStaffActivo.nombre}</h3>
             <div className="flex justify-end gap-2 text-xs">
@@ -627,3 +584,6 @@ export default function App() {
     </div>
   );
 }
+
+// 3. SE LO INYECTAMOS AL NAVEGADOR GLOBALMENTE (ASÍ BABEL LO ENCUENTRA SIN USAR EXPORTS)
+window.App = App;
