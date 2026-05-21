@@ -143,12 +143,12 @@ export default function App() {
         recargo = 0.20;
       } else if (cuadras > 25) {
         semaforo = "LEJOS";
-        recargo = 0.10; // Se define un 10% preventivo para rango LEJOS en moto
+        recargo = 0.10;
       }
     } else if (transporte === "BICICLETA") {
       if (cuadras > 20) {
         semaforo = "MUY LEJOS";
-        recargo = 0.20; // Corregido el carácter roto de compilación
+        recargo = 0.20;
       } else if (cuadras > 12) {
         semaforo = "LEJOS";
         recargo = 0.10;
@@ -199,12 +199,10 @@ export default function App() {
   const confirmarRendicionCobro = async (montoEfectivoIngresado) => {
     if (!modalCobroActivo) return;
 
-    // Actualiza el turno a estado definitivo
     await updateDoc(doc(db, "turnos", modalCobroActivo.id), {
       estado: "Cobrado (sin rendir)"
     });
 
-    // Registra la transacción en el flujo contable histórico
     await addDoc(collection(db, "operaciones"), {
       tipo: "TURNO_COBRADO",
       turnoId: modalCobroActivo.id,
@@ -217,7 +215,6 @@ export default function App() {
     setModalCobroActivo(null);
   };
 
-  // Reset estructural de la base operativa de datos
   const reiniciarTablasSistema = async () => {
     if (!window.confirm("¿Seguro que querés limpiar y resetear la base operativa?")) return;
     
@@ -240,21 +237,19 @@ export default function App() {
   const liquidacionConsolidada = () => {
     const data = {};
     STAFF_SEED.forEach(s => {
-      data[s.id] = { nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0 };
+      data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0 };
     });
 
-    // Computar comisiones y efectivo únicamente de lo efectivamente cobrado
     turnos.forEach(t => {
       if (t.estado === "Cobrado (sin rendir)" && data[t.lavadorId]) {
-        data[t.lavadorId].comisiones += t.precio * 0.50; // Comisión limpia del 50%
-        data[t.lavadorId].efectivoMano += t.precio;      // Dinero que retiene el operario
+        data[t.lavadorId].comisiones += t.precio * 0.50; // 50% Comisión
+        data[t.lavadorId].efectivoMano += t.precio;      // Retiene el efectivo cobrado
       }
     });
 
-    // Consolidar egresos por vales o adelantos otorgados
     operaciones.forEach(o => {
       if (o.tipo === "ADELANTO" && data[o.lavadorId]) {
-        data[o.lavadorId].adelantos += o.monto; // Corregido operador matemático
+        data[o.lavadorId].adelantos += o.monto;
       }
     });
 
@@ -269,12 +264,13 @@ export default function App() {
     );
   }
 
-  const tablaCierreContable = liquidacionConsolidada();
+  // Mapeamos el listado oficial solicitado
+  const listadoJorgeLiq = liquidacionConsolidada();
 
   return (
     <div className="min-h-screen bg-[#02060d] text-slate-300 font-sans p-4 space-y-6 selection:bg-cyan-500 selection:text-black">
       
-      {/* ENCABEZADO Y CONTROLES OPERATIVOS CRÍTICOS */}
+      {/* HEADER */}
       <header className="bg-[#040a14] border border-slate-800 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4 shadow-xl shadow-black/40">
         <div>
           <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
@@ -284,7 +280,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Switch de Lluvia de Emergencia */}
           <button
             onClick={toggleLluvia}
             className={`px-4 py-2 rounded-xl text-xs font-bold tracking-wider transition-all duration-300 flex items-center gap-2 border ${
@@ -306,21 +301,18 @@ export default function App() {
         </div>
       </header>
 
-      {/* RENDER DE ALERTA CLIMÁTICA ACTIVA */}
       {configLluvia && (
-        <div className="bg-gradient-to-r from-red-950 via-slate-950 to-slate-950 border-l-4 border-red-500 p-4 rounded-xl text-xs space-y-1">
+        <div className="bg-gradient-to-r from-red-950 via-slate-950 to-slate-950 border-l-4 border-red-500 p-4 rounded-xl text-xs">
           <strong className="text-red-400 block font-bold tracking-wide">PROTOCOLO DE INCLEMENCIA CLIMÁTICA ACTIVO</strong>
-          <span className="text-slate-400 block">Sugerencia de negocio: Coordinar con los lavadores activos la pausa de la toma de turnos a domicilio y resguardar equipamiento electrónico.</span>
+          <span className="text-slate-400 block">Sugerencia de negocio: Coordinar con los lavadores activos la pausa de la toma de turnos.</span>
         </div>
       )}
 
-      {/* DASHBOARD PRINCIPAL EN DOS COLUMNAS */}
+      {/* GRIDS PRINCIPALES */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* COLUMNA IZQUIERDA: GESTIÓN OPERATIVA Y ALTA */}
+        {/* FORMULARIOS (COL IZQUIERDA) */}
         <section className="lg:col-span-4 space-y-6">
-          
-          {/* PANEL DE ALTA DE TURNOS CON SEMÁFORO GEOGRÁFICO */}
           <div className="bg-[#040a14] border border-slate-800 p-5 rounded-2xl space-y-4">
             <h2 className="text-sm font-bold text-white tracking-wide uppercase border-b border-slate-800 pb-2">Despacho de Turno Real</h2>
             
@@ -333,7 +325,7 @@ export default function App() {
                   value={cliente}
                   onChange={(e) => setCliente(e.target.value)}
                   placeholder="Ej: Carlos Estévez"
-                  className="w-full bg-[#02060d] border border-slate-800 focus:border-cyan-500 rounded-xl p-2.5 text-white placeholder:text-slate-700 outline-none transition-colors"
+                  className="w-full bg-[#02060d] border border-slate-800 focus:border-cyan-500 rounded-xl p-2.5 text-white outline-none"
                 />
               </div>
 
@@ -343,12 +335,12 @@ export default function App() {
                   <select
                     value={tipoVehiculo}
                     onChange={(e) => setTipoVehiculo(e.target.value)}
-                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none focus:border-cyan-500"
+                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none"
                   >
                     <option value="MOTO">MOTO</option>
                     <option value="AUTO">AUTO</option>
-                    <option value="SUV">SUV (4x4 Chica)</option>
-                    <option value="PICKUP">PICKUP (Camioneta)</option>
+                    <option value="SUV">SUV</option>
+                    <option value="PICKUP">PICKUP</option>
                   </select>
                 </div>
 
@@ -357,7 +349,7 @@ export default function App() {
                   <select
                     value={transporte}
                     onChange={(e) => setTransporte(e.target.value)}
-                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none focus:border-cyan-500"
+                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none"
                   >
                     <option value="MOTO">MOTO DEL LAVADOR</option>
                     <option value="BICICLETA">BICICLETA</option>
@@ -367,7 +359,7 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Latitud Destino:</label>
+                  <label className="text-slate-400 font-medium">Latitud:</label>
                   <input
                     type="number"
                     step="any"
@@ -375,11 +367,11 @@ export default function App() {
                     value={latCli}
                     onChange={(e) => setLatCli(e.target.value)}
                     placeholder="-34.5062"
-                    className="w-full bg-[#02060d] border border-slate-800 focus:border-cyan-500 rounded-xl p-2.5 text-white outline-none"
+                    className="w-full bg-[#02060d] border border-slate-800 text-white p-2.5 rounded-xl outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Longitud Destino:</label>
+                  <label className="text-slate-400 font-medium">Longitud:</label>
                   <input
                     type="number"
                     step="any"
@@ -387,23 +379,23 @@ export default function App() {
                     value={lngCli}
                     onChange={(e) => setLngCli(e.target.value)}
                     placeholder="-58.5034"
-                    className="w-full bg-[#02060d] border border-slate-800 focus:border-cyan-500 rounded-xl p-2.5 text-white outline-none"
+                    className="w-full bg-[#02060d] border border-slate-800 text-white p-2.5 rounded-xl outline-none"
                   />
                 </div>
               </div>
 
               <div className="space-y-1 pt-1">
-                <label className="text-slate-400 font-medium">Asignar Operario Directo:</label>
+                <label className="text-slate-400 font-medium">Asignar Operario:</label>
                 <div className="grid grid-cols-2 gap-2">
                   {STAFF_SEED.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => setLavadorAsignado(s.id)}
-                      className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all duration-150 ${
+                      className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
                         lavadorAsignado === s.id
                           ? "bg-slate-900 text-white border-cyan-500 font-bold"
-                          : "bg-transparent text-slate-500 border-slate-800 hover:border-slate-700"
+                          : "bg-transparent text-slate-500 border-slate-800"
                       }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }}></span>
@@ -415,39 +407,36 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold p-3 rounded-xl transition-all duration-200 mt-4 shadow-lg shadow-cyan-500/10 text-center uppercase tracking-wider"
+                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold p-3 rounded-xl transition-all uppercase tracking-wider font-sans text-center"
               >
                 Despachar Lavador
               </button>
             </form>
           </div>
 
-          {/* BOTÓN RÁPIDO PARA VALES DE ADELANTOS */}
           <button
             onClick={() => setModalValeActivo(true)}
-            className="w-full bg-gradient-to-r from-slate-950 to-[#040a14] hover:from-[#040a14] hover:to-slate-900 border border-slate-800 text-slate-300 font-bold p-3 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md transition-all duration-150"
+            className="w-full bg-[#040a14] border border-slate-800 text-slate-300 font-bold p-3 rounded-2xl text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-all"
           >
-            <span>💸</span> REGISTRAR VALE / ADELANTO DE CAJA
+            💸 REGISTRAR VALE / ADELANTO DE CAJA
           </button>
         </section>
 
-        {/* COLUMNA DERECHA: SEGUIMIENTO EN TIEMPO REAL Y CIERRE DE JORGE */}
+        {/* MONITOR Y LIQUIDACIÓN (COL DERECHA) */}
         <section className="lg:col-span-8 space-y-6">
           
-          {/* MONITOR DE TURNOS EN CURSO */}
           <div className="bg-[#040a14] border border-slate-800 p-5 rounded-2xl space-y-4">
             <h2 className="text-sm font-bold text-white tracking-wide uppercase border-b border-slate-800 pb-2 flex items-center justify-between">
               <span>Monitor de Flujo de Trabajo</span>
-              <span className="text-xs font-mono text-slate-500 normal-case">{turnos.length} registros totales</span>
+              <span className="text-xs font-mono text-slate-500">{turnos.length} turnos</span>
             </h2>
 
             {turnos.length === 0 ? (
-              <div className="text-center py-8 text-xs font-mono text-slate-600">NO HAY TURNOS REGISTRADOS HOY</div>
+              <div className="text-center py-8 text-xs font-mono text-slate-600">NO HAY TURNOS REGISTRADOS</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {turnos.map((t) => {
-                  const lav = STAFF_SEED.find((s) => s.id === t.lavadorId) || { nombre: "Sin Nombre", color: "#64748b" };
-                  
+                  const lav = STAFF_SEED.find((s) => s.id === t.lavadorId) || { nombre: "Operario", color: "#64748b" };
                   let semColor = "bg-green-500/10 text-green-400 border-green-500/20";
                   if (t.semaforoGeografico === "LEJOS") semColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
                   if (t.semaforoGeografico === "MUY LEJOS") semColor = "bg-red-500/10 text-red-400 border-red-500/20";
@@ -455,32 +444,30 @@ export default function App() {
                   return (
                     <div key={t.id} className="bg-[#02060d] border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-1.5 h-full" style={{ backgroundColor: lav.color }}></div>
-
                       <div className="space-y-1 text-xs">
-                        <div className="flex justify-between items-start pr-2">
-                          <strong className="text-sm font-bold text-white tracking-tight">{t.clienteNombre}</strong>
+                        <div className="flex justify-between items-start">
+                          <strong className="text-sm font-bold text-white">{t.clienteNombre}</strong>
                           <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${semColor}`}>
                             {t.semaforoGeografico} ({t.cuadrasBase}c)
                           </span>
                         </div>
-                        <p className="text-slate-400 font-medium">{t.tipoVehiculo} — <span className="text-slate-500 font-normal">Moverse en {t.transporte}</span></p>
-                        <p className="text-slate-500 text-[11px] pt-1">Asignado a: <strong className="text-slate-300">{lav.nombre}</strong></p>
+                        <p className="text-slate-400">{t.tipoVehiculo} — En {t.transporte}</p>
+                        <p className="text-slate-500 text-[11px]">Asignado: <strong className="text-slate-300">{lav.nombre}</strong></p>
                       </div>
 
                       <div className="pt-2 border-t border-slate-900/60 flex items-center justify-between">
                         <span className="text-cyan-400 font-black font-mono text-sm">{formatP(t.precio)}</span>
-                        
-                        {t.estado === "Asignado" ? (
-                          <button
-                            onClick={() => setModalCobroActivo(t)}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-sm transition-all duration-150"
-                          >
-                            Rendir Turno
-                          </button>
-                        ) : (
+                        {t.state === "Cobrado (sin rendir)" || t.estado === "Cobrado (sin rendir)" ? (
                           <span className="text-[10px] bg-slate-900 text-emerald-400 border border-emerald-500/20 font-mono font-bold px-2 py-1 rounded-md">
                             ✓ COBRADO
                           </span>
+                        ) : (
+                          <button
+                            onClick={() => setModalCobroActivo(t)}
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            Rendir Turno
+                          </button>
                         )}
                       </div>
                     </div>
@@ -496,7 +483,7 @@ export default function App() {
               <h2 className="text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2">
                 <span>📊</span> Módulo Contable de Jorge (Planilla de Cierres)
               </h2>
-              <p className="text-xs text-slate-500 font-mono mt-0.5">Liquidación consolidada según cobros de dinero efectivo recibido</p>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">Liquidación consolidada según cobros efectivos</p>
             </div>
 
             <div className="overflow-x-auto">
@@ -504,24 +491,24 @@ export default function App() {
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 font-mono">
                     <th className="py-2.5 font-medium">Lavador</th>
-                    <th className="py-2.5 font-medium text-right">Comisión (50%)</th>
-                    <th className="py-2.5 font-medium text-right">Efectivo en Mano</th>
-                    <th className="py-2.5 font-medium text-right">Vales/Adelantos</th>
+                    <th className="py-2.5 font-medium">Comisión (50%)</th>
+                    <th className="py-2.5 font-medium">Efectivo en Mano</th>
+                    <th className="py-2.5 font-medium">Vales/Adelantos</th>
                     <th className="py-2.5 font-medium text-right text-cyan-400">Saldo a Transferir</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-900">
-                  {tablaCierreContable.map((row) => {
-                    // REGLA MATEMÁTICA DEFINIDA POR JORGE PARA AJUSTE DIGITAL DE SALDOS
+                  {listadoJorgeLiq.map(row => {
+                    // Cálculo limpio del Saldo final a Transferir digitalmente
                     const saldoFinalATransferir = row.comisiones - row.efectivoMano - row.adelantos;
                     
                     return (
-                      <tr key={row.nombre} className="hover:bg-slate-900/30 font-mono">
-                        <td className="py-3 font-sans font-bold text-white">{row.nombre}</td>
-                        <td className="py-3 text-right text-emerald-400 font-bold">{formatP(row.comisiones)}</td>
-                        <td className="py-3 text-right text-slate-400">{formatP(row.efectivoMano)}</td>
-                        <td className="py-3 text-right text-red-400">{formatP(row.adelantos)}</td>
-                        <td className={`py-3 text-right font-black text-sm ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-amber-500"}`}>
+                      <tr key={row.id} className="border-b border-slate-900 hover:bg-slate-950/40 font-mono">
+                        <td className="py-2.5 font-sans font-bold text-white">{row.nombre}</td>
+                        <td className="py-2.5 text-slate-300">{formatP(row.comisiones)}</td>
+                        <td className="py-2.5 text-rose-400">{formatP(row.efectivoMano)}</td>
+                        <td className="py-2.5 text-amber-400">{formatP(row.adelantos)}</td>
+                        <td className={`py-2.5 text-right font-black text-sm ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
                           {formatP(saldoFinalATransferir)}
                         </td>
                       </tr>
@@ -533,35 +520,32 @@ export default function App() {
             
             <div className="bg-[#02060d] border border-slate-800/80 p-3 rounded-xl text-[11px] text-slate-500 font-mono flex items-start gap-2">
               <span className="text-cyan-400 text-xs">ℹ</span>
-              <p>Un **Saldo a Transferir** positivo indica dinero digital neto que debés enviarle al operario por Mercado Pago. Si figura en color naranja (negativo), significa que el lavador retuvo más efectivo del que le correspondía de comisiones y debe devolver la diferencia.</p>
+              <p>Saldo positivo: Dinero neto a transferir por Mercado Pago al operario. Saldo negativo (en rojo): El operario retuvo más efectivo en mano de sus turnos del que le correspondía por comisiones, debiendo rendir la diferencia.</p>
             </div>
           </div>
 
         </section>
       </main>
 
-      {/* MODAL COBRO INTERACTIVO INTELIGENTE */}
+      {/* MODAL COBRO */}
       {modalCobroActivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={() => setModalCobroActivo(null)}>
-          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-white tracking-tight">Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
-            
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalCobroActivo(null)}>
+          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-white">Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
             <div className="bg-[#040a14] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
               <span className="text-slate-400">Esperado Original:</span>
               <strong className="text-cyan-400 text-sm font-black font-mono">{formatP(modalCobroActivo.precio)}</strong>
             </div>
-
             <div className="space-y-2">
               <button
                 onClick={() => confirmarRendicionCobro(modalCobroActivo.precio)}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold p-2.5 rounded-xl text-xs transition-all duration-150 uppercase tracking-wide"
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold p-2.5 rounded-xl text-xs uppercase"
               >
-                Confirmar Cobro Completo en Efectivo
+                Confirmar Cobro Completo
               </button>
-              
               <button
                 onClick={() => setModalCobroActivo(null)}
-                className="w-full bg-slate-950 hover:bg-slate-900 text-slate-400 p-2.5 rounded-xl text-xs font-mono transition-all duration-150"
+                className="w-full bg-slate-950 text-slate-400 p-2.5 rounded-xl text-xs font-mono"
               >
                 Cancelar Cierre
               </button>
@@ -570,12 +554,11 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL PARA SOLICITUD DE VALES / ADELANTOS */}
+      {/* MODAL VALES */}
       {modalValeActivo && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalValeActivo(false)}>
-          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white">Registrar Vale / Adelanto de Caja</h3>
-            
             <form onSubmit={registrarValeAdelanto} className="space-y-3 text-xs">
               <div className="space-y-1">
                 <label className="text-slate-400">Seleccionar Lavador:</label>
@@ -589,7 +572,6 @@ export default function App() {
                   ))}
                 </select>
               </div>
-
               <div className="space-y-1">
                 <label className="text-slate-400">Monto del Adelanto ($):</label>
                 <input
@@ -601,9 +583,8 @@ export default function App() {
                   className="w-full bg-[#02060d] border border-slate-800 p-2.5 rounded-xl text-white font-mono outline-none"
                 />
               </div>
-
               <div className="space-y-1">
-                <label className="text-slate-400">Motivo / Descripción (Opcional):</label>
+                <label className="text-slate-400">Motivo (Opcional):</label>
                 <input
                   type="text"
                   value={valeMotivo}
@@ -612,21 +593,9 @@ export default function App() {
                   className="w-full bg-[#02060d] border border-slate-800 p-2.5 rounded-xl text-white outline-none"
                 />
               </div>
-
               <div className="pt-2 grid grid-cols-2 gap-3">
-                <button
-                  type="submit"
-                  className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold p-2.5 rounded-xl"
-                >
-                  Confirmar Vale
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalValeActivo(false)}
-                  className="bg-slate-950 text-slate-400 p-2.5 rounded-xl font-mono"
-                >
-                  Cerrar
-                </button>
+                <button type="submit" className="bg-cyan-500 text-black font-bold p-2.5 rounded-xl">Confirmar Vale</button>
+                <button type="button" onClick={() => setModalValeActivo(false)} className="bg-slate-950 text-slate-400 p-2.5 rounded-xl font-mono">Cerrar</button>
               </div>
             </form>
           </div>
