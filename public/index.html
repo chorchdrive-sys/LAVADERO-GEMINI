@@ -3,605 +3,282 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sofía Lavados - Sistema</title>
-    
+    <title>SOFÍA LAVADOS - Gestión Integral</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-[#040a14]">
-
+<body class="bg-[#040a14] text-slate-200">
     <div id="root"></div>
 
     <script type="text/babel">
-        // CONFIGURACIÓN DE FIREBASE OFICIAL (SOFÍA LAVADOS)
+        // CONFIGURACIÓN FIREBASE
         const FB = {
-          apiKey: "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
-          authDomain: "sofia-lavados-99231.firebaseapp.com",
-          projectId: "sofia-lavados-99231",
-          storageBucket: "sofia-lavados-99231.firebasestorage.app",
-          messagingSenderId: "738758410354",
-          appId: "1:738758410354:web:0c07ee6f2906d8add402eb"
+            apiKey: "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
+            authDomain: "sofia-lavados-99231.firebaseapp.com",
+            projectId: "sofia-lavados-99231",
+            storageBucket: "sofia-lavados-99231.firebasestorage.app",
+            messagingSenderId: "738758410354",
+            appId: "1:738758410354:web:0c07ee6f2906d8add402eb"
         };
-
-        // Inicialización usando el objeto global de la ventana
-        const app = firebase.initializeApp(FB);
+        firebase.initializeApp(FB);
         const db = firebase.firestore();
 
-        // CONSTANTES DE NEGOCIO Y CONFIGURACIÓN BASE
-        const BASE_LAT = -34.5128; // Alberdi 1620, Olivos
+        // CONSTANTES
+        const BASE_LAT = -34.5128; 
         const BASE_LNG = -58.4985;
-
         const FRANJAS = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00"];
-
-        const TAMANOS_DEFAULT = [
-          { id: "chico", label: "Chico", precio: 25000 },
-          { id: "mediano", label: "Mediano", precio: 28000 },
-          { id: "camioneta", label: "Camioneta", precio: 32000 }
+        const TAMANOS = [
+            { id: "chico", label: "Chico", precio: 25000 },
+            { id: "mediano", label: "Mediano", precio: 28000 },
+            { id: "camioneta", label: "Camioneta", precio: 32000 }
         ];
 
         const STAFF_SEED = [
-          { nombre: "Jhony", transporte: "moto", color: "#22d3ee", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Sergio", transporte: "moto", color: "#ea5e9", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Alexander", transporte: "moto", color: "#38bdf8", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Maxi", transporte: "moto", color: "#7dd3fc", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Rene", transporte: "moto", color: "#06b6d4", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Brandon", transporte: "moto", color: "#67e8f9", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Jorge", transporte: "moto", color: "#a5f3fc", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Emiliano", transporte: "moto", color: "#2dd4bf", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Gaby", transporte: "moto", color: "#5eead4", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Javi", transporte: "moto", color: "#99f6e4", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Franco", transporte: "moto", color: "#34d399", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Fede", transporte: "moto", color: "#6ee7b7", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Elias", transporte: "moto", color: "#a7f3d0", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Alvaro", transporte: "bici", color: "#c084fc", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Nestor", transporte: "bici", color: "#d8b4fe", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Matias", transporte: "bici", color: "#e879f9", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Luis", transporte: "bici", color: "#f0abfc", whatsapp: true, rol: "lavador", especial: "" },
-          { font: "Bruno", nombre: "Bruno", transporte: "bici", color: "#a78bfa", whatsapp: true, rol: "lavador", especial: "" },
-          { nombre: "Nico Alto", transporte: "bici", color: "#fbbf24", whatsapp: true, rol: "lavador", especial: "rapido" },
-          { nombre: "Hernán", transporte: "bici", color: "#f87171", whatsapp: false, rol: "lavador", especial: "avisar_presencia" },
-          { nombre: "Gastón", transporte: "bici", color: "#fb923c", whatsapp: false, rol: "lavador", especial: "llamar_telefono" }
+            { id: "s1", nombre: "Jhony", transporte: "moto", color: "#22d3ee" },
+            { id: "s2", nombre: "Sergio", transporte: "moto", color: "#ea5e9" },
+            { id: "s3", nombre: "Alexander", transporte: "moto", color: "#38bdf8" },
+            { id: "s4", nombre: "Maxi", transporte: "moto", color: "#7dd3fc" },
+            { id: "s5", nombre: "Rene", transporte: "moto", color: "#06b6d4" },
+            { id: "s6", nombre: "Bruno", transporte: "bici", color: "#a78bfa" },
+            { id: "s7", nombre: "Hernán", transporte: "bici", color: "#f87171" }
         ];
 
-        const BARRIOS_INICIALES = {
-          "olivos": "OLI", "martinez": "MAR", "florida": "FLO", "san isidro": "SIS",
-          "acassuso": "ACA", "la lucila": "LAL", "boulogne": "BOU", "vicente lopez": "VLO",
-          "munro": "MUN", "villa adelina": "VAD", "beccar": "BEC"
-        };
-
-        const geocache = {};
-
-        const obtenerHoyISO = () => {
-          const now = new Date();
-          const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-          const ar = new Date(utc - 180 * 60000);
-          const y = ar.getFullYear();
-          const m = String(ar.getMonth() + 1).padStart(2, "0");
-          const d = String(ar.getDate()).padStart(2, "0");
-          return `${y}-${m}-${d}`;
-        };
-
+        // HELPERS
+        const obtenerHoy = () => new Date().toISOString().split('T')[0];
         const formatP = n => "$" + Number(n || 0).toLocaleString("es-AR");
 
-        function calcularHaversineKm(lat1, lon1, lat2, lon2) {
-          const R = 6371;
-          const dLat = (lat2 - lat1) * Math.PI / 180;
-          const dLon = (lon2 - lon1) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          return R * c;
-        }
-
-        function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
-          const km = calcularHaversineKm(lat1, lon1, lat2, lon2);
-          return Math.round(km * 10);
-        }
-
-        // COMPONENTE PRINCIPAL
         function App() {
-          const [tab, setTab] = React.useState("grilla");
-          const [jornadaEstado, setJornadaEstado] = React.useState("cerrado"); 
-          const [modoFlexible, setModoFlexible] = React.useState(false);
-          const [lavadoresRetenidos, setLavadoresRetenidos] = React.useState([]);
+            const [tab, setTab] = React.useState("turnos");
+            const [staff, setStaff] = React.useState([]);
+            const [turnos, setTurnos] = React.useState([]);
+            const [jornada, setJornada] = React.useState({ estado: 'cerrado', retenidos: [] });
+            
+            // Estados para Formulario
+            const [form, setForm] = React.useState({ cliente: '', direccion: '', barrio: 'Olivos', franja: '09:00', tamano: 'mediano', lavador: '', metodo: 'efectivo' });
+            const [buscandoGps, setBuscandoGps] = React.useState(false);
 
-          const [staff, setStaff] = React.useState([]);
-          const [turnos, setTurnos] = React.useState([]);
-          const [clientes, setClientes] = React.useState([]);
-          const [operacionesStaff, setOperacionesStaff] = React.useState([]);
+            // Modales
+            const [modalCobro, setModalCobro] = React.useState(null);
+            const [modalVale, setModalVale] = React.useState(null);
 
-          const [rangoPeriodo, setRangoPeriodo] = React.useState("semana"); 
-          const [filtroLavadorCierre, setFiltroLavadorCierre] = React.useState("todos");
+            React.useEffect(() => {
+                const unsubStaff = db.collection("staff").onSnapshot(snap => {
+                    if (snap.empty) STAFF_SEED.forEach(s => db.collection("staff").add(s));
+                    else setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                const unsubTurnos = db.collection("turnos").onSnapshot(snap => {
+                    setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                const unsubConfig = db.collection("config").doc("jornada").onSnapshot(doc => {
+                    if (doc.exists) setJornada(doc.data());
+                });
+                return () => { unsubStaff(); unsubTurnos(); unsubConfig(); };
+            }, []);
 
-          const [modalCobroActivo, setModalCobroActivo] = React.useState(null);
-          const [modalStaffActivo, setModalStaffActivo] = React.useState(null);
-          const [geocodificando, setGeocodificando] = React.useState(false);
+            // Lógica de Semáforo y Guardado
+            const guardarTurno = async () => {
+                if (!form.cliente || !form.direccion || !form.lavador) return alert("Faltan datos");
+                setBuscandoGps(true);
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.direccion + ", " + form.barrio + ", Buenos Aires")}`);
+                    const data = await res.json();
+                    let lat = BASE_LAT, lng = BASE_LNG, cuadras = 0;
+                    
+                    if (data[0]) {
+                        lat = parseFloat(data[0].lat);
+                        lng = parseFloat(data[0].lon);
+                        const dist = Math.sqrt(Math.pow(lat - BASE_LAT, 2) + Math.pow(lng - BASE_LNG, 2)) * 111;
+                        cuadras = Math.round(dist * 10);
+                    }
 
-          const [ntCliente, setNtCliente] = React.useState("");
-          const [ntDireccion, setNtDireccion] = React.useState("");
-          const [ntBarrio, setNtBarrio] = React.useState("Olivos");
-          const [ntFranja, setNtFranja] = React.useState("09:00");
-          const [ntTamano, setNtTamano] = React.useState("mediano");
-          const [ntLavador, setNtLavador] = React.useState("");
-          const [ntMetodo, setNtMetodo] = React.useState("efectivo");
+                    const lav = staff.find(s => s.id === form.lavador);
+                    const precioBase = TAMANOS.find(t => t.id === form.tamano).precio;
+                    let recargo = 0, semaforo = "OK";
 
-          React.useEffect(() => {
-            const unsubStaff = db.collection("staff").onSnapshot(snap => {
-              if (snap.empty) { 
-                STAFF_SEED.forEach(s => db.collection("staff").add(s)); 
-              } else { 
-                setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
-              }
-            });
+                    if (lav.transporte === "moto" && cuadras > 30) { recargo = 0.2; semaforo = "FZ"; }
+                    if (lav.transporte === "bici" && cuadras > 15) { recargo = 0.2; semaforo = "FZ"; }
 
-            const unsubTurnos = db.collection("turnos").onSnapshot(snap => {
-              setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            });
-
-            const unsubClientes = db.collection("clientes").onSnapshot(snap => {
-              setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            });
-
-            const unsubOps = db.collection("operacionesStaff").onSnapshot(snap => {
-              setOperacionesStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            });
-
-            const cargarJornada = async () => {
-              const docSnap = await db.collection("config").doc("jornada").get();
-              if (docSnap.exists) {
-                const d = docSnap.data();
-                setJornadaEstado(d.estado || "cerrado");
-                setModoFlexible(d.modoFlexible || false);
-                setLavadoresRetenidos(d.lavadoresRetenidos || []);
-              }
+                    await db.collection("turnos").add({
+                        ...form,
+                        lavadorNombre: lav.nombre,
+                        precio: precioBase * (1 + recargo),
+                        cuadras,
+                        semaforo,
+                        lat, lng,
+                        fecha: obtenerHoy(),
+                        estadoPago: 'Pendiente'
+                    });
+                    setForm({ ...form, cliente: '', direccion: '' });
+                } catch (e) { console.error(e); }
+                setBuscandoGps(false);
             };
 
-            cargarJornada();
-
-            return () => { unsubStaff(); unsubTurnos(); unsubClientes(); unsubOps(); };
-          }, []);
-
-          const cambiarEstadoJornada = async (nuevoEstado) => {
-            setJornadaEstado(nuevoEstado);
-            let flex = false;
-            let retenidos = [];
-            if (nuevoEstado === "lluvia") {
-              flex = true; 
-              retenidos = staff.map(s => s.id);
-            }
-            setModoFlexible(flex);
-            setLavadoresRetenidos(retenidos);
-            await db.collection("config").doc("jornada").set({ 
-              estado: nuevoEstado, 
-              modoFlexible: flex, 
-              lavadoresRetenidos: retenidos 
-            }, { merge: true });
-          };
-
-          const ejecutarReanudarClima = async () => {
-            setJornadaEstado("abierto");
-            setModoFlexible(false);
-            await db.collection("config").doc("jornada").set({ 
-              estado: "abierto", 
-              modoFlexible: false, 
-              lavadoresRetenidos: lavadoresRetenidos 
-            }, { merge: true });
-          };
-
-          const switchLavadorRetenido = async (id) => {
-            let aux = [...lavadoresRetenidos];
-            if (aux.includes(id)) { aux = aux.filter(x => x != id); }
-            else { aux.push(id); }
-            setLavadoresRetenidos(aux);
-            await db.collection("config").doc("jornada").set({ lavadoresRetenidos: aux }, { merge: true });
-          };
-
-          const procesarAltaTurno = async () => {
-            if (!ntCliente || !ntDireccion || !ntLavador) { alert("Completar datos obligatorios."); return; }
-            setGeocodificando(true);
-            let finalLat = BASE_LAT;
-            let finalLng = BASE_LNG;
-            const queryDireccion = `${ntDireccion}, ${ntBarrio}, Buenos Aires, Argentina`;
-
-            if (geocache[queryDireccion]) {
-              finalLng = geocache[queryDireccion].lng;
-              finalLat = geocache[queryDireccion].lat;
-            } else {
-              try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryDireccion)}`, {
-                  headers: { "User-Agent": "Sofialavados_v5_System", "Accept-Language": "es" }
+            // Rendición de Jorge (La más compleja)
+            const ejecutarRendicion = async (importeReal, propina, destino) => {
+                const dif = importeReal - modalCobro.precio;
+                await db.collection("turnos").doc(modalCobro.id).update({
+                    estadoPago: destino === 'deuda' ? 'Cliente Debe' : 'Cobrado',
+                    montoPagado: importeReal,
+                    diferencia: dif,
+                    propina: propina,
+                    fechaCobro: obtenerHoy()
                 });
-                const data = await res.json();
-                if (data && data.length > 0) {
-                  finalLat = parseFloat(data[0].lat);
-                  finalLng = parseFloat(data[0].lon);
-                  geocache[queryDireccion] = { lat: finalLat, lng: finalLng };
-                }
-              } catch (e) { console.error("Error geocodificación Nominatim:", e); }
-            }
+                setModalCobro(null);
+            };
 
-            const turnosChicoHoy = turnos.filter(t => t.staffId === ntLavador && t.fecha === obtenerHoyISO() && t.estado !== "cancelado");
-            let latOrigen = BASE_LAT;
-            let lngOrigen = BASE_LNG;
-            if (turnosChicoHoy.length > 0) {
-              const u = turnosChicoHoy[turnosChicoHoy.length - 1];
-              if (u.lat && u.lng) { latOrigen = u.lat; lngOrigen = u.lng; }
-            }
-
-            const cuadras = calcularCuadrasReales(latOrigen, lngOrigen, finalLat, finalLng);
-            const lavObj = staff.find(s => s.id === ntLavador);
-            const transporte = lavObj ? lavObj.transporte : "moto";
-
-            let colorSemaforo = "OK";
-            let recargo = 0;
-
-            if (transporte === "moto") {
-              if (cuadras > 35) { colorSemaforo = "FZ"; recargo = 0.20; }
-              else if (cuadras > 25) { colorSemaforo = "LEJOS"; }
-            } else if (transporte === "bici") {
-              if (cuadras > 21) { colorSemaforo = "FZ"; recargo = 0.20; }
-              else if (cuadras > 15) { colorSemaforo = "LEJOS"; }
-            } else {
-              if (cuadras > 10) { colorSemaforo = "FZ"; recargo = 0.20; }
-              else if (cuadras > 7) { colorSemaforo = "LEJOS"; }
-            }
-
-            if (modoFlexible && colorSemaforo !== "OK") {
-              colorSemaforo = "FZ OK (Flexible)";
-            }
-
-            const precioBase = TAMANOS_DEFAULT.find(t => t.id === ntTamano).precio;
-            const precioFinal = precioBase + (precioBase * recargo);
-            const codBarrio = BARRIOS_INICIALES[ntBarrio.toLowerCase()] || "GEN";
-
-            await db.collection("turnos").add({
-              clienteNombre: ntCliente,
-              direccion: ntDireccion,
-              barrio: ntBarrio,
-              codBarrio,
-              franja: ntFranja,
-              tamano: ntTamano,
-              staffId: ntLavador,
-              staffNombre: lavObj ? lavObj.nombre : "",
-              metodo: ntMetodo,
-              precio: precioFinal,
-              cuadras,
-              semaforo: colorSemaforo,
-              lat: finalLat,
-              lng: finalLng,
-              fecha: obtenerHoyISO(),
-              estado: "confirmado",
-              estadoPago: "Pendiente"
-            });
-
-            setNtCliente(""); setNtDireccion(""); setGeocodificando(false);
-          };
-
-          const ejecutarCobroFinal = async (turno, importeReal, dif, motivo, destino) => {
-            let estPago = "Cobrado (sin rendir)";
-            if (importeReal === 0 || (dif < 0 && destino === "deuda")) {
-              estPago = "Cliente debe";
-            }
-            await db.collection("turnos").doc(turno.id).update({
-              estadoPago: estPago,
-              montoPagado: importeReal,
-              diferencia: dif,
-              motivoDiferencia: motivo,
-              destinoSaldo: destino,
-              fechaCobro: obtenerHoyISO()
-            });
-            setModalCobroActivo(null);
-          };
-
-          const ejecutarMovimientoStaff = async (lavador, monto, tipo) => {
-            await db.collection("operacionesStaff").add({
-              lavadorId: lavador.id,
-              lavadorNombre: lavador.nombre,
-              monto,
-              tipo,
-              fecha: obtenerHoyISO(),
-              timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            setModalStaffActivo(null);
-          };
-
-          const obtenerFechasPeriodo = () => {
-            const list = [obtenerHoyISO()];
-            const limite = rangoPeriodo === "semana" ? 7 : rangoPeriodo === "mes" ? 30 : 1;
-            for (let i = 1; i < limite; i++) {
-              const d = new Date(); d.setDate(d.getDate() - i);
-              list.push(d.toISOString().split("T")[0]);
-            }
-            return list;
-          };
-
-          const filtroFechas = obtenerFechasPeriodo();
-          const turnosCierre = turnos.filter(t => filtroFechas.includes(t.fecha) && (filtroLavadorCierre === "todos" || t.staffId === filtroLavadorCierre));
-
-          const liquidacionConsolidada = () => {
-            const data = {};
-            staff.forEach(s => {
-              if (filtroLavadorCierre === "todos" || s.id === filtroLavadorCierre) {
-                data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0, propinas: 0 };
-              }
-            });
-
-            turnosCierre.forEach(t => {
-              if (data[t.staffId]) {
-                const montoBaseComision = (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") 
-                  ? (t.montoPagado || 0) 
-                  : (t.precio || 0);
-                  
-                data[t.staffId].comisiones += montoBaseComision * 0.50; 
+            // Cálculos para la tabla de Jorge
+            const liquidacionJorge = () => {
+                const resumen = {};
+                staff.forEach(s => resumen[s.id] = { nombre: s.nombre, comisiones: 0, efectivoMano: 0, vales: 0 });
                 
-                if (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") {
-                  data[t.staffId].efectivoMano += (t.montoPagado || 0);
-                }
-                if (t.destinoSaldo === "propina" && t.diferencia > 0) {
-                  data[t.staffId].propinas += t.diferencia;
-                }
-              }
-            });
+                turnos.filter(t => t.fecha === obtenerHoy()).forEach(t => {
+                    if (resumen[t.lavador]) {
+                        const comision = t.precio * 0.5;
+                        resumen[t.lavador].comisiones += comision;
+                        if (t.metodo === 'efectivo' && t.estadoPago === 'Cobrado') {
+                            resumen[t.lavador].efectivoMano += t.montoPagado;
+                        }
+                    }
+                });
+                return Object.values(resumen);
+            };
 
-            operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre)).forEach(o => {
-              if (data[o.lavadorId]) {
-                if (o.tipo.includes("recibe")) { data[o.lavadorId].adelantos += o.monto; }
-                else { data[o.lavadorId].adelantos -= o.monto; }
-              }
-            });
-
-            return Object.values(data);
-          };
-
-          const listadoJorgeLiq = liquidacionConsolidada();
-          const totalMP = turnosCierre.filter(t => t.metodo === "mp" && t.estadoPago?.includes("Cobrado")).reduce((a, b) => a + (b.montoPagado || 0), 0);
-          const totalEF = turnosCierre.filter(t => t.metodo === "efectivo" && t.estadoPago?.includes("Cobrado")).reduce((a, b) => a + (b.montoPagado || 0), 0);
-          const totalPendientes = turnosCierre.filter(t => t.estadoPago === "Pendiente").length;
-
-          return (
-            <div className="bg-[#040a14] text-slate-200 min-h-screen font-sans p-4 antialiased">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 mb-4">
-                <div>
-                  <h1 className="text-xl font-black text-cyan-400 tracking-tight">SOFÍA LAVADOS SISTEMA v5.0</h1>
-                  <p className="text-xs text-slate-500">Módulo de Logística Georeferenciada y Cierre Jorge</p>
-                </div>
-                <div className="flex flex-wrap gap-2 items-center bg-[#0b1220] p-2 rounded-xl border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 px-2">JORNADA:</span>
-                  {jornadaEstado === "cerrado" ? (
-                    <button className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("abierto")}>Abrir Jornada</button>
-                  ) : (
-                    <>
-                      {jornadaEstado === "abierto" && <button className="bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("lluvia")}>Modo Lluvia</button>}
-                      {jornadaEstado === "lluvia" && <button className="bg-amber-500 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg" onClick={ejecutarReanudarClima}>Reanudar Sol</button>}
-                      <button className="bg-rose-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("cerrado")}>Cerrar Jornada</button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto border-b border-slate-900 pb-2 mb-4 scrollbar-none">
-                <button onClick={() => setTab("grilla")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "grilla" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Turnos</button>
-                <button onClick={() => setTab("cierre")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "cierre" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Cierre de Caja</button>
-                <button onClick={() => setTab("staff")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "staff" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Personal</button>
-              </div>
-
-              {tab === "grilla" && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 h-fit">
-                    <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Agendar Nuevo Turno Inteligente</h2>
-                    <div className="flex flex-col gap-2.5">
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-bold block mb-1">CLIENTE</label>
-                        <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntCliente} onChange={e => setNtCliente(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-bold block mb-1">DIRECCIÓN DE TEXTO REAL</label>
-                        <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntDireccion} onChange={e => setNtDireccion(e.target.value)} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
+            return (
+                <div className="max-w-5xl mx-auto p-4">
+                    {/* CABECERA */}
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
                         <div>
-                          <label className="text-[10px] text-slate-400 font-bold block mb-1">LOCALIDAD / BARRIO</label>
-                          <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntBarrio} onChange={e => setNtBarrio(e.target.value)}>
-                            <option value="Olivos">Olivos</option>
-                            <option value="Martínez">Martínez</option>
-                            <option value="Florida">Florida</option>
-                          </select>
+                            <h1 className="text-2xl font-black text-cyan-400">SOFÍA LAVADOS v5.0</h1>
+                            <p class="text-xs text-slate-500 font-mono">ACCOUNTING & LOGISTICS SYSTEM</p>
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 font-bold block mb-1">BLOQUE HORARIO</label>
-                          <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntFranja} onChange={e => setNtFranja(e.target.value)}>
-                            {FRANJAS.map(f => <option key={f} value={f}>{f} hs</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-400 font-bold block mb-1">TAMAÑO VEHÍCULO</label>
-                          <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntTamano} onChange={e => setNtTamano(e.target.value)}>
-                            {TAMANOS_DEFAULT.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 font-bold block mb-1">LAVADOR ASIGNADO</label>
-                          <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntLavador} onChange={e => setNtLavador(e.target.value)}>
-                            <option value="">Seleccionar lavador...</option>
-                            {staff.filter(s => jornadaEstado !== "lluvia" || lavadoresRetenidos.includes(s.id)).map(s => (
-                              <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400 font-bold block mb-1">PROPUESTA DE PAGO</label>
-                        <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntMetodo} onChange={e => setNtMetodo(e.target.value)}>
-                          <option value="efectivo">Efectivo en mano</option>
-                          <option value="mp">Mercado Pago (Digital)</option>
-                        </select>
-                      </div>
-                      <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded-lg mt-2 transition-colors" onClick={procesarAltaTurno} disabled={geocodificando}>
-                        {geocodificando ? "Georeferenciando dirección..." : "Validar Distancia y Guardar"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-2 bg-[#0b1220] p-4 rounded-xl border border-slate-800">
-                    <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Monitor Operativo de Turnos</h2>
-                    {turnos.filter(t => t.fecha === obtenerHoyISO()).length === 0 ? (
-                        <div className="text-center text-xs text-slate-600 py-8">No hay turnos registrados en la jornada de hoy.</div>
-                      ) : (
-                        turnos.filter(t => t.fecha === obtenerHoyISO()).map(t => (
-                          <div key={t.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-black text-white">{t.franja} hs</span>
-                                <span className="bg-slate-800 text-[9px] text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">({t.codBarrio})</span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.semaforo?.includes("OK") ? "bg-emerald-950 text-emerald-400 border border-emerald-800/30" : "bg-rose-950 text-rose-400 border border-rose-800/30"}`}>{t.semaforo}</span>
-                              </div>
-                              <div className="text-xs font-medium text-slate-300 mt-1">{t.clienteNombre} - <span className="text-slate-500">{t.direccion}</span></div>
-                              <div className="text-[10px] text-slate-500 mt-0.5">Asignado: <strong>{t.staffNombre}</strong> ({t.cuadras} cuadras)</div>
-                            </div>
-                            <div className="text-right flex flex-col items-end gap-1">
-                              <div className="text-xs font-black text-cyan-400">{formatP(t.precio)}</div>
-                              <button className={`text-[10px] font-bold px-2 py-1 rounded border ${t.estadoPago?.includes("Cobrado") ? "bg-cyan-950/40 text-cyan-400 border-cyan-800/50" : "bg-slate-900 text-slate-400 border-slate-800"}`} onClick={() => setModalCobroActivo(t)}>
-                                {t.estadoPago || "Registrar Pago"}
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                  </div>
-                </div>
-              )}
-
-              {tab === "cierre" && (
-                <div className="space-y-4">
-                  <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
-                    <div className="flex gap-1.5 bg-[#040a14] p-1 rounded-lg border border-slate-800 w-fit">
-                      <button onClick={() => setRangoPeriodo("hoy")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "hoy" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Hoy</button>
-                      <button onClick={() => setRangoPeriodo("semana")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "semana" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Semana</button>
-                      <button onClick={() => setRangoPeriodo("mes")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "mes" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Mes</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400">LIQUIDAR DE UN TIRÓN:</span>
-                      <select className="bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={filtroLavadorCierre} onChange={e => setFiltroLavadorCierre(e.target.value)}>
-                        <option value="todos">Todos los lavadores</option>
-                        {staff.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-[#0b1220] p-4 rounded-xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/10 to-transparent">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Efectivo</div>
-                      <div className="text-xl font-black text-emerald-400 mt-1">{formatP(totalEF)}</div>
-                    </div>
-                    <div className="bg-[#0b1220] p-4 rounded-xl border border-cyan-900/40 bg-gradient-to-br from-cyan-950/10 to-transparent">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Mercado Pago</div>
-                      <div className="text-xl font-black text-cyan-400 mt-1">{formatP(totalMP)}</div>
-                    </div>
-                    <div className="bg-[#0b1220] p-4 rounded-xl border border-amber-900/40 bg-gradient-to-br from-amber-950/10 to-transparent">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Turnos sin Cobrar Pendientes</div>
-                      <div className="text-xl font-black text-amber-400 mt-1">{totalPendientes} servicios</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 overflow-x-auto">
-                    <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Planilla de Saldos y Comisiones</h2>
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-800 text-slate-500 font-bold">
-                          <th className="pb-2">LAVADOR</th>
-                          <th className="pb-2">COMISIONES (50%)</th>
-                          <th className="pb-2">EFECTIVO EN MANO</th>
-                          <th className="pb-2">ADELANTOS / VALES</th>
-                          <th className="pb-2 text-right">SALDO A TRANSFERIR (MP)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {listadoJorgeLiq.map(row => {
-                          const saldoFinalATransferir = row.comisiones - row.efectivoMano - row.adelantos;
-                          return (
-                            <tr key={row.id} className="border-b border-slate-900 hover:bg-slate-950/40">
-                              <td className="py-2.5 font-bold text-white">{row.nombre}</td>
-                              <td className="py-2.5 text-slate-300">{formatP(row.comisiones)}</td>
-                              <td className="py-2.5 text-rose-400">{formatP(row.efectivoMano)}</td>
-                              <td className="py-2.5 text-amber-400">{formatP(row.adelantos)}</td>
-                              <td className={`py-2.5 text-right font-black ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
-                                {formatP(saldoFinalATransferir)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {tab === "staff" && (
-                <div className="bg-[#061220] p-4 rounded-xl border border-slate-800">
-                  <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Registro de Estado Personal & Adelantos</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {staff.map(s => (
-                      <div key={s.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <span className="text-xs font-bold text-white block">{s.nombre}</span>
-                            <span className="text-[10px] text-slate-500 uppercase font-mono">{s.transporte} • {s.rol}</span>
-                          </div>
-                        </div>
-                        <button className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-bold px-3 py-1.5 rounded-lg" onClick={() => setModalStaffActivo(s)}>
-                          Registrar Vale / Adelanto
+                        <button 
+                            onClick={() => db.collection("config").doc("jornada").set({ estado: jornada.estado === 'abierto' ? 'cerrado' : 'abierto' }, {merge: true})}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition ${jornada.estado === 'abierto' ? 'bg-rose-500/20 text-rose-500 border border-rose-500/50' : 'bg-emerald-500 text-white'}`}
+                        >
+                            {jornada.estado === 'abierto' ? 'CERRAR JORNADA' : 'ABRIR JORNADA'}
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
 
-              {modalCobroActivo && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalCobroActivo(null)}>
-                  <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
-                    <h3 className="text-sm font-bold text-white">Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
-                    <div className="bg-[#040a14] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Esperado Original:</span>
-                      <strong className="text-cyan-400 text-sm font-black">{formatP(modalCobroActivo.precio)}</strong>
+                    {/* TABS */}
+                    <div className="flex gap-4 mb-6 border-b border-slate-900 pb-2">
+                        <button onClick={() => setTab("turnos")} className={`pb-2 px-2 text-sm font-bold ${tab === 'turnos' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500'}`}>DIARIO</button>
+                        <button onClick={() => setTab("cierre")} className={`pb-2 px-2 text-sm font-bold ${tab === 'cierre' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-slate-500'}`}>CIERRE JORGE</button>
                     </div>
-                    <div className="flex justify-end gap-2 text-xs">
-                      <button className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg" onClick={() => setModalCobroActivo(null)}>Cancelar</button>
-                      <button className="bg-cyan-600 text-white font-bold px-4 py-1.5 rounded-lg" onClick={() => ejecutarCobroFinal(modalCobroActivo, modalCobroActivo.precio, 0, "", "caja")}>Confirmar Cobro Completo</button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {modalStaffActivo && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalStaffActivo(null)}>
-                  <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
-                    <h3 className="text-sm font-bold text-white">Registrar Movimiento: {modalStaffActivo.nombre}</h3>
-                    <div className="flex justify-end gap-2 text-xs">
-                      <button className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg" onClick={() => setModalStaffActivo(null)}>Cancelar</button>
-                      <button className="bg-amber-600 text-slate-950 font-bold px-4 py-1.5 rounded-lg" onClick={() => ejecutarMovimientoStaff(modalStaffActivo, 1000, "Adelanto de sueldo (lavador recibe)")}>Registrar Vale Base ($1.000)</button>
-                    </div>
-                  </div>
+                    {tab === "turnos" && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* FORMULARIO */}
+                            <div className="bg-[#0b1220] p-5 rounded-2xl border border-slate-800 h-fit">
+                                <h2 className="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">Nuevo Servicio</h2>
+                                <div className="space-y-3">
+                                    <input placeholder="Nombre Cliente" className="w-full bg-[#040a14] p-3 rounded-xl border border-slate-800 text-sm outline-none" value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})} />
+                                    <input placeholder="Dirección" className="w-full bg-[#040a14] p-3 rounded-xl border border-slate-800 text-sm outline-none" value={form.direccion} onChange={e => setForm({...form, direccion: e.target.value})} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <select className="bg-[#040a14] p-3 rounded-xl border border-slate-800 text-xs" value={form.barrio} onChange={e => setForm({...form, barrio: e.target.value})}>
+                                            <option>Olivos</option><option>Martínez</option><option>Florida</option><option>San Isidro</option>
+                                        </select>
+                                        <select className="bg-[#040a14] p-3 rounded-xl border border-slate-800 text-xs" value={form.franja} onChange={e => setForm({...form, franja: e.target.value})}>
+                                            {FRANJAS.map(f => <option key={f}>{f}</option>)}
+                                        </select>
+                                    </div>
+                                    <select className="w-full bg-[#040a14] p-3 rounded-xl border border-slate-800 text-xs" value={form.lavador} onChange={e => setForm({...form, lavador: e.target.value})}>
+                                        <option value="">Seleccionar Lavador</option>
+                                        {staff.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>)}
+                                    </select>
+                                    <button disabled={buscandoGps} onClick={guardarTurno} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold p-3 rounded-xl text-xs transition">
+                                        {buscandoGps ? "VALIDANDO..." : "AGENDAR TURNO"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* MONITOR */}
+                            <div className="lg:col-span-2 space-y-3">
+                                {turnos.filter(t => t.fecha === obtenerHoy()).sort((a,b) => a.franja.localeCompare(b.franja)).map(t => (
+                                    <div key={t.id} className="bg-[#0b1220] p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-center bg-[#040a14] p-2 rounded-xl border border-slate-800 min-w-[60px]">
+                                                <div className="text-xs font-black text-cyan-400">{t.franja}</div>
+                                                <div className="text-[10px] text-slate-500 font-bold">{t.barrio.substring(0,3).toUpperCase()}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold">{t.cliente} <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">{t.tamano}</span></div>
+                                                <div className="text-xs text-slate-500">{t.direccion}</div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`w-2 h-2 rounded-full ${t.semaforo === 'FZ' ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                                    <span className="text-[10px] font-bold text-slate-400">{t.lavadorNombre} • {t.cuadras} cuadras</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-black text-white">{formatP(t.precio)}</div>
+                                            <button onClick={() => setModalCobro(t)} className={`mt-1 text-[10px] px-3 py-1 rounded-full font-bold border transition ${t.estadoPago === 'Pendiente' ? 'border-amber-500/50 text-amber-500 bg-amber-500/10' : 'border-cyan-500/50 text-cyan-500 bg-cyan-500/10'}`}>
+                                                {t.estadoPago.toUpperCase()}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {tab === "cierre" && (
+                        <div className="bg-[#0b1220] rounded-2xl border border-slate-800 overflow-hidden">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="bg-[#161f32] text-slate-400 uppercase">
+                                        <th className="p-4">Personal</th>
+                                        <th className="p-4">Comisiones (50%)</th>
+                                        <th className="p-4">Efectivo en Mano</th>
+                                        <th className="p-4 text-right">Saldo a Transferir (MP)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {liquidacionJorge().map((row, i) => (
+                                        <tr key={i} className="hover:bg-slate-900/50">
+                                            <td className="p-4 font-bold text-slate-300">{row.nombre}</td>
+                                            <td className="p-4 text-emerald-400 font-bold">{formatP(row.comisiones)}</td>
+                                            <td className="p-4 text-rose-400">{formatP(row.efectivoMano)}</td>
+                                            <td className="p-4 text-right font-black text-cyan-400 text-sm">
+                                                {formatP(row.comisiones - row.efectivoMano)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* MODAL COBRO DETALLADO */}
+                    {modalCobro && (
+                        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50">
+                            <div className="bg-[#0b1220] w-full max-w-sm rounded-3xl p-6 border border-slate-800">
+                                <h3 className="text-xl font-bold mb-1">Rendir Servicio</h3>
+                                <p className="text-xs text-slate-500 mb-4">{modalCobro.cliente} - {formatP(modalCobro.precio)}</p>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500 block mb-1">IMPORTE RECIBIDO</label>
+                                        <input type="number" id="inpMonto" className="w-full bg-[#040a14] p-4 rounded-2xl border border-slate-800 text-xl font-black text-emerald-400 outline-none" defaultValue={modalCobro.precio} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={() => ejecutarRendicion(document.getElementById('inpMonto').value, 0, 'caja')} className="bg-cyan-600 p-4 rounded-2xl font-bold text-xs">COBRAR TODO</button>
+                                        <button onClick={() => ejecutarRendicion(0, 0, 'deuda')} className="bg-slate-800 p-4 rounded-2xl font-bold text-xs text-rose-400">CLIENTE DEBE</button>
+                                    </div>
+                                    <button onClick={() => setModalCobro(null)} className="w-full text-slate-500 text-xs font-bold pt-2">CANCELAR</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
-              )}
-            </div>
-          );
+            );
         }
 
-        // Renderizado directo garantizado e inmediato
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
-        console.log("¡Sistema unificado levantado con éxito!");
     </script>
 </body>
 </html>
