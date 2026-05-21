@@ -1,11 +1,3 @@
-// 1. IMPORTACIONES DIRECTAS DESDE LOS CDNs GLOBALES DE FIREBASE
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import {
-  getFirestore, doc, setDoc, getDoc, collection,
-  addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
-  updateDoc, query, where
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
 // CONFIGURACIÓN DE FIREBASE OFICIAL (SOFÍA LAVADOS)
 const FB = {
   apiKey: "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
@@ -16,8 +8,9 @@ const FB = {
   appId: "1:738758410354:web:0c07ee6f2906d8add402eb"
 };
 
-const app = initializeApp(FB);
-const db = getFirestore(app);
+// Inicialización usando el objeto global de la ventana (aprovechando lo que ya carga el index.html)
+const app = firebase.initializeApp(FB);
+const db = firebase.firestore();
 
 // CONSTANTES DE NEGOCIO Y CONFIGURACIÓN BASE
 const BASE_LAT = -34.5128; // Alberdi 1620, Olivos
@@ -63,7 +56,7 @@ const BARRIOS_INICIALES = {
 
 const geocache = {};
 
-// HELPERS AUXILIARES (FECHAS, PRECIOS, DISTANCIAS REALES)
+// HELPERS CONTABLES Y GEOGRÁFICOS
 const obtenerHoyISO = () => {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -76,7 +69,6 @@ const obtenerHoyISO = () => {
 
 const formatP = n => "$" + Number(n || 0).toLocaleString("es-AR");
 
-// Fórmula matemática Haversine
 function calcularHaversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -93,59 +85,62 @@ function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
   return Math.round(km * 10);
 }
 
-// 2. CREAMOS EL COMPONENTE COMO UNA FUNCIÓN COMÚN (EVITAMOS EL EXPORT DEFAULT DIRECTO QUE SE ROMPE)
+// COMPONENTE PRINCIPAL (Usamos los estados desde el objeto global React)
 function App() {
-  const [tab, setTab] = useState("grilla");
-  const [jornadaEstado, setJornadaEstado] = useState("cerrado"); 
-  const [modoFlexible, setModoFlexible] = useState(false);
-  const [lavadoresRetenidos, setLavadoresRetenidos] = useState([]);
+  const [tab, setTab] = React.useState("grilla");
+  const [jornadaEstado, setJornadaEstado] = React.useState("cerrado"); 
+  const [modoFlexible, setModoFlexible] = React.useState(false);
+  const [lavadoresRetenidos, setLavadoresRetenidos] = React.useState([]);
 
   // Colecciones de datos
-  const [staff, setStaff] = useState([]);
-  const [turnos, setTurnos] = useState([]);
-  const [clientes, setClientes] = useState([]);
-  const [operacionesStaff, setOperacionesStaff] = useState([]);
+  const [staff, setStaff] = React.useState([]);
+  const [turnos, setTurnos] = React.useState([]);
+  const [clientes, setClientes] = React.useState([]);
+  const [operacionesStaff, setOperacionesStaff] = React.useState([]);
 
   // Filtros del Módulo Contable de Jorge
-  const [rangoPeriodo, setRangoPeriodo] = useState("semana"); 
-  const [filtroLavadorCierre, setFiltroLavadorCierre] = useState("todos");
+  const [rangoPeriodo, setRangoPeriodo] = React.useState("semana"); 
+  const [filtroLavadorCierre, setFiltroLavadorCierre] = React.useState("todos");
 
   // Estado para altas de turnos y modales
-  const [modalCobroActivo, setModalCobroActivo] = useState(null);
-  const [modalStaffActivo, setModalStaffActivo] = useState(null);
-  const [geocodificando, setGeocodificando] = useState(false);
+  const [modalCobroActivo, setModalCobroActivo] = React.useState(null);
+  const [modalStaffActivo, setModalStaffActivo] = React.useState(null);
+  const [geocodificando, setGeocodificando] = React.useState(false);
 
   // Formulario nuevo turno
-  const [ntCliente, setNtCliente] = useState("");
-  const [ntDireccion, setNtDireccion] = useState("");
-  const [ntBarrio, setNtBarrio] = useState("Olivos");
-  const [ntFranja, setNtFranja] = useState("09:00");
-  const [ntTamano, setNtTamano] = useState("mediano");
-  const [ntLavador, setNtLavador] = useState("");
-  const [ntMetodo, setNtMetodo] = useState("efectivo");
+  const [ntCliente, setNtCliente] = React.useState("");
+  const [ntDireccion, setNtDireccion] = React.useState("");
+  const [ntBarrio, setNtBarrio] = React.useState("Olivos");
+  const [ntFranja, setNtFranja] = React.useState("09:00");
+  const [ntTamano, setNtTamano] = React.useState("mediano");
+  const [ntLavador, setNtLavador] = React.useState("");
+  const [ntMetodo, setNtMetodo] = React.useState("efectivo");
 
   React.useEffect(() => {
-    // Sincronización en tiempo real Firebase Firestore
-    const unsubStaff = onSnapshot(collection(db, "staff"), snap => {
-      if (snap.empty) { STAFF_SEED.forEach(s => addDoc(collection(db, "staff"), s)); }
-      else { setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }
+    // Vinculación directa con los métodos de la librería global de Firebase
+    const unsubStaff = db.collection("staff").onSnapshot(snap => {
+      if (snap.empty) { 
+        STAFF_SEED.forEach(s => db.collection("staff").add(s)); 
+      } else { 
+        setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
+      }
     });
 
-    const unsubTurnos = onSnapshot(collection(db, "turnos"), snap => {
+    const unsubTurnos = db.collection("turnos").onSnapshot(snap => {
       setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubClientes = onSnapshot(collection(db, "clientes"), snap => {
+    const unsubClientes = db.collection("clientes").onSnapshot(snap => {
       setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubOps = onSnapshot(collection(db, "operacionesStaff"), snap => {
+    const unsubOps = db.collection("operacionesStaff").onSnapshot(snap => {
       setOperacionesStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
     const cargarJornada = async () => {
-      const docSnap = await getDoc(doc(db, "config", "jornada"));
-      if (docSnap.exists()) {
+      const docSnap = await db.collection("config").doc("jornada").get();
+      if (docSnap.exists) {
         const d = docSnap.data();
         setJornadaEstado(d.estado || "cerrado");
         setModoFlexible(d.modoFlexible || false);
@@ -168,13 +163,21 @@ function App() {
     }
     setModoFlexible(flex);
     setLavadoresRetenidos(retenidos);
-    await setDoc(doc(db, "config", "jornada"), { estado: nuevoEstado, modoFlexible: flex, lavadoresRetenidos: retenidos }, { merge: true });
+    await db.collection("config").doc("jornada").set({ 
+      estado: nuevoEstado, 
+      modoFlexible: flex, 
+      lavadoresRetenidos: retenidos 
+    }, { merge: true });
   };
 
   const ejecutarReanudarClima = async () => {
     setJornadaEstado("abierto");
     setModoFlexible(false);
-    await setDoc(doc(db, "config", "jornada"), { estado: "abierto", modoFlexible: false, lavadoresRetenidos: lavadoresRetenidos }, { merge: true });
+    await db.collection("config").doc("jornada").set({ 
+      estado: "abierto", 
+      modoFlexible: false, 
+      lavadoresRetenidos: lavadoresRetenidos 
+    }, { merge: true });
   };
 
   const switchLavadorRetenido = async (id) => {
@@ -182,7 +185,7 @@ function App() {
     if (aux.includes(id)) { aux = aux.filter(x => x != id); }
     else { aux.push(id); }
     setLavadoresRetenidos(aux);
-    await setDoc(doc(db, "config", "jornada"), { lavadoresRetenidos: aux }, { merge: true });
+    await db.collection("config").doc("jornada").set({ lavadoresRetenidos: aux }, { merge: true });
   };
 
   const procesarAltaTurno = async () => {
@@ -243,7 +246,7 @@ function App() {
     const precioFinal = precioBase + (precioBase * recargo);
     const codBarrio = BARRIOS_INICIALES[ntBarrio.toLowerCase()] || "GEN";
 
-    await addDoc(collection(db, "turnos"), {
+    await db.collection("turnos").add({
       clienteNombre: ntCliente,
       direccion: ntDireccion,
       barrio: ntBarrio,
@@ -271,7 +274,7 @@ function App() {
     if (importeReal === 0 || (dif < 0 && destino === "deuda")) {
       estPago = "Cliente debe";
     }
-    await updateDoc(doc(db, "turnos", turno.id), {
+    await db.collection("turnos").doc(turno.id).update({
       estadoPago: estPago,
       montoPagado: importeReal,
       diferencia: dif,
@@ -283,13 +286,13 @@ function App() {
   };
 
   const ejecutarMovimientoStaff = async (lavador, monto, tipo) => {
-    await addDoc(collection(db, "operacionesStaff"), {
+    await db.collection("operacionesStaff").add({
       lavadorId: lavador.id,
       lavadorNombre: lavador.nombre,
       monto,
       tipo,
       fecha: obtenerHoyISO(),
-      timestamp: serverTimestamp()
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
     setModalStaffActivo(null);
   };
@@ -585,5 +588,5 @@ function App() {
   );
 }
 
-// 3. SE LO INYECTAMOS AL NAVEGADOR GLOBALMENTE (ASÍ BABEL LO ENCUENTRA SIN USAR EXPORTS)
+// Vinculación limpia con la ventana global
 window.App = App;
