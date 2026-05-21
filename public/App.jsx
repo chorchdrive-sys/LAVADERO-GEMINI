@@ -8,7 +8,7 @@ const FB = {
   appId: "1:738758410354:web:0c07ee6f2906d8add402eb"
 };
 
-// Inicialización usando el objeto global de la ventana (aprovechando lo que ya carga el index.html)
+// Inicialización usando el objeto global de la ventana
 const app = firebase.initializeApp(FB);
 const db = firebase.firestore();
 
@@ -85,7 +85,7 @@ function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
   return Math.round(km * 10);
 }
 
-// COMPONENTE PRINCIPAL (Usamos los estados desde el objeto global React)
+// COMPONENTE PRINCIPAL
 function App() {
   const [tab, setTab] = React.useState("grilla");
   const [jornadaEstado, setJornadaEstado] = React.useState("cerrado"); 
@@ -117,7 +117,6 @@ function App() {
   const [ntMetodo, setNtMetodo] = React.useState("efectivo");
 
   React.useEffect(() => {
-    // Vinculación directa con los métodos de la librería global de Firebase
     const unsubStaff = db.collection("staff").onSnapshot(snap => {
       if (snap.empty) { 
         STAFF_SEED.forEach(s => db.collection("staff").add(s)); 
