@@ -22,17 +22,20 @@
     <script type="text/babel" src="App.jsx"></script>
 
     <script type="text/babel">
-        window.addEventListener('load', () => {
-            // Le damos una milésima de segundo a Babel para asegurar que inyectó App en el window global
-            setTimeout(() => {
-                if (window.App) {
-                    const root = ReactDOM.createRoot(document.getElementById('root'));
-                    root.render(React.createElement(window.App));
-                } else {
-                    console.error("No se pudo encontrar el componente App en el entorno global. Verificá si App.jsx tiene errores de sintaxis.");
-                }
-            }, 50);
-        });
+        // Esta función va a revisar cada un instante hasta que App aparezca en memoria
+        const iniciarAppSegura = () => {
+            if (window.App) {
+                const root = ReactDOM.createRoot(document.getElementById('root'));
+                root.render(React.createElement(window.App));
+                console.log("¡Sistema iniciado con éxito!");
+            } else {
+                // Si Babel todavía está traduciendo, espera 100 milisegundos y vuelve a intentar
+                setTimeout(iniciarAppSegura, 105);
+            }
+        };
+
+        // Arranca la revisión apenas se monta el esqueleto básico
+        window.addEventListener('DOMContentLoaded', iniciarAppSegura);
     </script>
 </body>
 </html>
