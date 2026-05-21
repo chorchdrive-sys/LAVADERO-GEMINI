@@ -6,598 +6,620 @@ import {
   updateDoc, query, where
 } from "firebase/firestore";
 
-//
 // CONFIGURACIÓN DE FIREBASE OFICIAL (SOFÍA LAVADOS)
-//
 const FB = {
   apiKey: "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
   authDomain: "sofia-lavados-99231.firebaseapp.com",
   projectId: "sofia-lavados-99231",
   storageBucket: "sofia-lavados-99231.firebasestorage.app",
   messagingSenderId: "738758410354",
-  appId: "1:738758410354:web:8c909a34114486ceb1d6d5"
+  appId: "1:738758410354:web:0c07ee6f2906d8add402eb"
 };
 
 const app = initializeApp(FB);
 const db = getFirestore(app);
 
-//
-// REGLAS DE NEGOCIO EN DURO
-//
-const COORD_BASE = { lat: -34.5062, lng: -58.5034 }; // Centro de Operaciones en Olivos
+// CONSTANTES DE NEGOCIO Y CONFIGURACIÓN BASE
+const BASE_LAT = -34.5128; // Alberdi 1620, Olivos
+const BASE_LNG = -58.4985;
 
-const STAFF_SEED = [
-  { id: "jhony", nombre: "Jhony", color: "#10b981", whatsapp: "5491123456789" },
-  { id: "sergio", nombre: "Sergio", color: "#3b82f6", whatsapp: "5491198765432" },
-  { id: "marcos", nombre: "Marcos", color: "#f59e0b", whatsapp: "5491155554444" },
-  { id: "matias", nombre: "Matías", color: "#8b5cf6", whatsapp: "5491166667777" }
+const FRANJAS = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00"];
+
+const TAMANOS_DEFAULT = [
+  { id: "chico", label: "Chico", precio: 25000 },
+  { id: "mediano", label: "Mediano", precio: 28000 },
+  { id: "camioneta", label: "Camioneta", precio: 32000 }
 ];
 
-const PRECIOS_BASE = {
-  MOTO: 8000,
-  AUTO: 12000,
-  SUV: 15000,
-  PICKUP: 18000
+const STAFF_SEED = [
+  { nombre: "Jhony", transporte: "moto", color: "#22d3ee", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Sergio", transporte: "moto", color: "#ea5e9", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Alexander", transporte: "moto", color: "#38bdf8", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Maxi", transporte: "moto", color: "#7dd3fc", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Rene", transporte: "moto", color: "#06b6d4", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Brandon", transporte: "moto", color: "#67e8f9", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Jorge", transporte: "moto", color: "#a5f3fc", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Emiliano", transporte: "moto", color: "#2dd4bf", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Gaby", transporte: "moto", color: "#5eead4", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Javi", transporte: "moto", color: "#99f6e4", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Franco", transporte: "moto", color: "#34d399", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Fede", transporte: "moto", color: "#6ee7b7", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Elias", transporte: "moto", color: "#a7f3d0", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Alvaro", transporte: "bici", color: "#c084fc", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Nestor", transporte: "bici", color: "#d8b4fe", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Matias", transporte: "bici", color: "#e879f9", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Luis", transporte: "bici", color: "#f0abfc", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Bruno", transporte: "bici", color: "#a78bfa", whatsapp: true, rol: "lavador", especial: "" },
+  { nombre: "Nico Alto", transporte: "bici", color: "#fbbf24", whatsapp: true, rol: "lavador", especial: "rapido" },
+  { nombre: "Hernán", transporte: "bici", color: "#f87171", whatsapp: false, rol: "lavador", especial: "avisar_presencia" },
+  { nombre: "Gastón", transporte: "bici", color: "#fb923c", whatsapp: false, rol: "lavador", especial: "llamar_telefono" }
+];
+
+const BARRIOS_INICIALES = {
+  "olivos": "OLI", "martinez": "MAR", "florida": "FLO", "san isidro": "SIS",
+  "acassuso": "ACA", "la lucila": "LAL", "boulogne": "BOU", "vicente lopez": "VLO",
+  "munro": "MUN", "villa adelina": "VAD", "beccar": "BEC"
 };
 
-// Formateador de dinero regional
-const formatP = (val) => {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    minimumFractionDigits: 0
-  }).format(val || 0);
+const MOTIVOS_DESCUENTO = [
+  "Error de cambio", "Descuento por queja", "Lavado gratis (compensación)", "Cliente no pagó (deuda)", "Otro"
+];
+
+const MOTIVOS_OPERACION = [
+  "Préstamo (lavador recibe)", "Adelanto de sueldo (lavador recibe)", "Devolución de préstamo (lavador paga)"
+];
+
+const geocache = {};
+
+// HELPERS AUXILIARES (FECHAS, PRECIOS, DISTANCIAS REALES)
+const obtenerHoyISO = () => {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ar = new Date(utc - 180 * 60000);
+  const y = ar.getFullYear();
+  const m = String(ar.getMonth() + 1).padStart(2, "0");
+  const d = String(ar.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
-// Fórmula Haversine Matemática para Distancia Real en Cuadras
-function calcularCuadras(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radio de la Tierra en km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+const formatP = n => "$" + Number(n || 0).toLocaleString("es-AR");
+
+// Fórmula matemática Haversine para calcular distancia real entre coordenadas
+function calcularHaversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const km = R * c;
-  return Math.round(km * 10); // 1 km = 10 cuadras aproximadamente
+  return R * c;
 }
 
+// Convierte coordenadas a cuadras reales (1 km = 10 cuadras)
+function calcularCuadrasReales(lat1, lon1, lat2, lon2) {
+  const km = calcularHaversineKm(lat1, lon1, lat2, lon2);
+  return Math.round(km * 10);
+}
+
+// COMPONENTE PRINCIPAL
 export default function App() {
-  // --- ESTADOS CORE ---
+  const [tab, setTab] = useState("grilla");
+  const [jornadaEstado, setJornadaEstado] = useState("cerrado"); // abierto, lluvia, cerrado
+  const [modoFlexible, setModoFlexible] = useState(false);
+  const [lavadoresRetenidos, setLavadoresRetenidos] = useState([]);
+
+  // Colecciones de datos
+  const [staff, setStaff] = useState([]);
   const [turnos, setTurnos] = useState([]);
-  const [operaciones, setOperaciones] = useState([]);
-  const [configLluvia, setConfigLluvia] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [clientes, setClientes] = useState([]);
+  const [operacionesStaff, setOperacionesStaff] = useState([]);
 
-  // --- FORMULARIO ALTA ---
-  const [cliente, setCliente] = useState("");
-  const [tipoVehiculo, setTipoVehiculo] = useState("AUTO");
-  const [transporte, setTransporte] = useState("MOTO");
-  const [latCli, setLatCli] = useState("");
-  const [lngCli, setLngCli] = useState("");
-  const [lavadorAsignado, setLavadorAsignado] = useState("jhony");
+  // Filtros del Módulo Contable de Jorge
+  const [rangoPeriodo, setRangoPeriodo] = useState("semana"); // hoy, semana, mes
+  const [filtroLavadorCierre, setFiltroLavadorCierre] = useState("todos");
 
-  // --- MODALES ---
+  // Estado para altas de turnos y modales
   const [modalCobroActivo, setModalCobroActivo] = useState(null);
-  const [modalValeActivo, setModalValeActivo] = useState(false);
-  const [valeLavador, setValeLavador] = useState("jhony");
-  const [valeMonto, setValeMonto] = useState("");
-  const [valeMotivo, setValeMotivo] = useState("");
+  const [modalStaffActivo, setModalStaffActivo] = useState(null);
+  const [geocodificando, setGeocodificando] = useState(false);
 
-  // Escucha activa de datos en Firebase (Tiempo Real)
+  // Formulario nuevo turno
+  const [ntCliente, setNtCliente] = useState("");
+  const [ntDireccion, setNtDireccion] = useState("");
+  const [ntBarrio, setNtBarrio] = useState("Olivos");
+  const [ntFranja, setNtFranja] = useState("09:00");
+  const [ntTamano, setNtTamano] = useState("mediano");
+  const [ntLavador, setNtLavador] = useState("");
+  const [ntMetodo, setNtMetodo] = useState("efectivo");
+
   useEffect(() => {
-    const qTurnos = query(collection(db, "turnos"));
-    const unsubTurnos = onSnapshot(qTurnos, (snap) => {
-      const tList = [];
-      snap.forEach((doc) => tList.push({ id: doc.id, ...doc.data() }));
-      setTurnos(tList);
+    // Sincronización en tiempo real Firebase Firestore
+    const unsubStaff = onSnapshot(collection(db, "staff"), snap => {
+      if (snap.empty) { STAFF_SEED.forEach(s => addDoc(collection(db, "staff"), s)); }
+      else { setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))); }
     });
 
-    const qOps = query(collection(db, "operaciones"));
-    const unsubOps = onSnapshot(qOps, (snap) => {
-      const oList = [];
-      snap.forEach((doc) => oList.push({ id: doc.id, ...doc.data() }));
-      setOperaciones(oList);
+    const unsubTurnos = onSnapshot(collection(db, "turnos"), snap => {
+      setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Estado global de contingencia climática
-    const docRef = doc(db, "config", "lluvia");
-    const unsubConfig = onSnapshot(docRef, (docSnap) => {
+    const unsubClientes = onSnapshot(collection(db, "clientes"), snap => {
+      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const unsubOps = onSnapshot(collection(db, "operacionesStaff"), snap => {
+      setOperacionesStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const cargarJornada = async () => {
+      const docSnap = await getDoc(doc(db, "config", "jornada"));
       if (docSnap.exists()) {
-        setConfigLluvia(docSnap.data().activa || false);
+        const d = docSnap.data();
+        setJornadaEstado(d.estado || "cerrado");
+        setModoFlexible(d.modoFlexible || false);
+        setLavadoresRetenidos(d.lavadoresRetenidos || []);
       }
-      setLoading(false);
-    });
-
-    return () => {
-      unsubTurnos();
-      unsubOps();
-      unsubConfig();
     };
+
+    cargarJornada();
+
+    return () => { unsubStaff(); unsubTurnos(); unsubClientes(); unsubOps(); };
   }, []);
 
-  // Control operativo de lluvia por Switch
-  const toggleLluvia = async () => {
-    const nuevoEstado = !configLluvia;
-    await setDoc(doc(db, "config", "lluvia"), { activa: nuevoEstado });
+  // FUNCIONES DEL MODO LLUVIA Y JORNADA
+  const cambiarEstadoJornada = async (nuevoEstado) => {
+    setJornadaEstado(nuevoEstado);
+    let flex = false;
+    let retenidos = [];
+    if (nuevoEstado === "lluvia") {
+      flex = true; // Activa semáforo geográfico flexible automáticamente
+      retenidos = staff.map(s => s.id);
+    }
+    setModoFlexible(flex);
+    setLavadoresRetenidos(retenidos);
+    await setDoc(doc(db, "config", "jornada"), { estado: nuevoEstado, modoFlexible: flex, lavadoresRetenidos: retenidos }, { merge: true });
   };
 
-  // Motor del Semáforo Geográfico y Alta Operativa
-  const procesarAltaTurno = async (e) => {
-    e.preventDefault();
-    if (!cliente || !latCli || !lngCli) return alert("Faltan datos clave de geolocalización");
+  const ejecutarReanudarClima = async () => {
+    setJornadaEstado("abierto");
+    setModoFlexible(false);
+    await setDoc(doc(db, "config", "jornada"), { estado: "abierto", modoFlexible: false, lavadoresRetenidos: lavadoresRetenidos }, { merge: true });
+  };
 
-    const lt = parseFloat(latCli);
-    const lg = parseFloat(lngCli);
-    const cuadras = calcularCuadras(COORD_BASE.lat, COORD_BASE.lng, lt, lg);
+  const switchLavadorRetenido = async (id) => {
+    let aux = [...lavadoresRetenidos];
+    if (aux.includes(id)) { aux = aux.filter(x => x != id); }
+    else { aux.push(id); }
+    setLavadoresRetenidos(aux);
+    await setDoc(doc(db, "config", "jornada"), { lavadoresRetenidos: aux }, { merge: true });
+  };
 
-    let semaforo = "CERCA";
-    let recargo = 0;
+  // GEOLOCALIZACIÓN REAL (NOMINATIM API) + HAVERSINE SEMÁFORO
+  const procesarAltaTurno = async () => {
+    if (!ntCliente || !ntDireccion || !ntLavador) { alert("Completar datos obligatorios."); return; }
+    setGeocodificando(true);
+    let finalLat = BASE_LAT;
+    let finalLng = BASE_LNG;
+    const queryDireccion = `${ntDireccion}, ${ntBarrio}, Buenos Aires, Argentina`;
 
-    if (transporte === "MOTO") {
-      if (cuadras > 35) {
-        semaforo = "MUY LEJOS";
-        recargo = 0.20;
-      } else if (cuadras > 25) {
-        semaforo = "LEJOS";
-        recargo = 0.10;
-      }
-    } else if (transporte === "BICICLETA") {
-      if (cuadras > 20) {
-        semaforo = "MUY LEJOS";
-        recargo = 0.20;
-      } else if (cuadras > 12) {
-        semaforo = "LEJOS";
-        recargo = 0.10;
-      }
+    if (geocache[queryDireccion]) {
+      finalLng = geocache[queryDireccion].lng;
+      finalLat = geocache[queryDireccion].lat;
+    } else {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryDireccion)}`, {
+          headers: { "User-Agent": "Sofialavados_v5_System", "Accept-Language": "es" }
+        });
+        const data = await res.json();
+        if (data && data.length > 0) {
+          finalLat = parseFloat(data[0].lat);
+          finalLng = parseFloat(data[0].lon);
+          geocache[queryDireccion] = { lat: finalLat, lng: finalLng };
+        }
+      } catch (e) { console.error("Error geocodificación Nominatim:", e); }
     }
 
-    const precioBase = PRECIOS_BASE[tipoVehiculo];
-    const precioFinal = precioBase * (1 + recargo);
+    const turnosChicoHoy = turnos.filter(t => t.staffId === ntLavador && t.fecha === obtenerHoyISO() && t.estado !== "cancelado");
+    let latOrigen = BASE_LAT;
+    let lngOrigen = BASE_LNG;
+    if (turnosChicoHoy.length > 0) {
+      const u = turnosChicoHoy[turnosChicoHoy.length - 1];
+      if (u.lat && u.lng) { latOrigen = u.lat; lngOrigen = u.lng; }
+    }
+
+    const cuadras = calcularCuadrasReales(latOrigen, lngOrigen, finalLat, finalLng);
+    const lavObj = staff.find(s => s.id === ntLavador);
+    const transporte = lavObj ? lavObj.transporte : "moto";
+
+    let colorSemaforo = "OK";
+    let recargo = 0;
+
+    if (transporte === "moto") {
+      if (cuadras > 35) { colorSemaforo = "FZ"; recargo = 0.20; }
+      else if (cuadras > 25) { colorSemaforo = "LEJOS"; }
+    } else if (transporte === "bici") {
+      if (cuadras > 21) { colorSemaforo = "FZ"; recargo = 0.20; }
+      else if (cuadras > 15) { colorSemaforo = "LEJOS"; }
+    } else {
+      if (cuadras > 10) { colorSemaforo = "FZ"; recargo = 0.20; }
+      else if (cuadras > 7) { colorSemaforo = "LEJOS"; }
+    }
+
+    if (modoFlexible && colorSemaforo !== "OK") {
+      colorSemaforo = "FZ OK (Flexible)";
+    }
+
+    const precioBase = TAMANOS_DEFAULT.find(t => t.id === ntTamano).precio;
+    const precioFinal = precioBase + (precioBase * recargo);
+    const codBarrio = BARRIOS_INICIALES[ntBarrio.toLowerCase()] || "GEN";
 
     await addDoc(collection(db, "turnos"), {
-      clienteNombre: cliente,
-      tipoVehiculo,
-      transporte,
-      latitud: lt,
-      longitud: lg,
-      cuadrasBase: cuadras,
-      semaforoGeografico: semaforo,
+      clienteNombre: ntCliente,
+      direccion: ntDireccion,
+      barrio: ntBarrio,
+      codBarrio,
+      franja: ntFranja,
+      tamano: ntTamano,
+      staffId: ntLavador,
+      staffNombre: lavObj ? lavObj.nombre : "",
+      metodo: ntMetodo,
       precio: precioFinal,
-      lavadorId: lavadorAsignado,
-      estado: "Asignado",
-      fechaCarga: new Date().toISOString()
+      cuadras,
+      semaforo: colorSemaforo,
+      lat: finalLat,
+      lng: finalLng,
+      fecha: obtenerHoyISO(),
+      estado: "confirmado",
+      estadoPago: "Pendiente"
     });
 
-    setCliente("");
-    setLatCli("");
-    setLngCli("");
+    setNtCliente(""); setNtDireccion(""); setGeocodificando(false);
   };
 
-  // Gestión de Vales y Adelantos Financieros
-  const registrarValeAdelanto = async (e) => {
-    e.preventDefault();
-    if (!valeMonto || parseFloat(valeMonto) <= 0) return alert("Monto inválido");
-
-    await addDoc(collection(db, "operaciones"), {
-      tipo: "ADELANTO",
-      lavadorId: valeLavador,
-      monto: parseFloat(valeMonto),
-      motivo: valeMotivo,
-      fecha: new Date().toISOString()
+  // ACCIONES FINANCIERAS Y PROCESAMIENTO CONTABLE
+  const ejecutarCobroFinal = async (turno, importeReal, dif, motivo, destino) => {
+    let estPago = "Cobrado (sin rendir)";
+    if (importeReal === 0 || (dif < 0 && destino === "deuda")) {
+      estPago = "Cliente debe";
+    }
+    await updateDoc(doc(db, "turnos", turno.id), {
+      estadoPago: estPago,
+      montoPagado: importeReal,
+      diferencia: dif,
+      motivoDiferencia: motivo,
+      destinoSaldo: destino,
+      fechaCobro: obtenerHoyISO()
     });
-
-    setValeMonto("");
-    setValeMotivo("");
-    setModalValeActivo(false);
-  };
-
-  // Cierre operativo de cobro en efectivo real
-  const confirmarRendicionCobro = async (montoEfectivoIngresado) => {
-    if (!modalCobroActivo) return;
-
-    await updateDoc(doc(db, "turnos", modalCobroActivo.id), {
-      estado: "Cobrado (sin rendir)"
-    });
-
-    await addDoc(collection(db, "operaciones"), {
-      tipo: "TURNO_COBRADO",
-      turnoId: modalCobroActivo.id,
-      lavadorId: modalCobroActivo.lavadorId,
-      montoRecibido: montoEfectivoIngresado,
-      precioEsperado: modalCobroActivo.precio,
-      fecha: new Date().toISOString()
-    });
-
     setModalCobroActivo(null);
   };
 
-  const reiniciarTablasSistema = async () => {
-    if (!window.confirm("¿Seguro que querés limpiar y resetear la base operativa?")) return;
-    
-    const snapTurnos = await getDocs(collection(db, "turnos"));
-    for (const d of snapTurnos.docs) {
-      await deleteDoc(doc(db, "turnos", d.id));
-    }
-
-    const snapOps = await getDocs(collection(db, "operaciones"));
-    for (const d of snapOps.docs) {
-      await deleteDoc(doc(db, "operaciones", d.id));
-    }
-
-    alert("Sistema reseteado a cero con éxito");
+  const ejecutarMovimientoStaff = async (lavador, monto, tipo) => {
+    await addDoc(collection(db, "operacionesStaff"), {
+      lavadorId: lavador.id,
+      lavadorNombre: lavador.nombre,
+      monto,
+      tipo,
+      fecha: obtenerHoyISO(),
+      timestamp: serverTimestamp()
+    });
+    setModalStaffActivo(null);
   };
 
-  //
-  // MÓDULO CONTABLE DE JORGE - PROCESAMIENTO MATEMÁTICO CONSOLIDADO
-  //
+  // LÓGICA DEL CIERRE SEMANAL (JORGE LIQUIDACIÓN)
+  const obtenerFechasPeriodo = () => {
+    const list = [obtenerHoyISO()];
+    const limite = rangoPeriodo === "semana" ? 7 : rangoPeriodo === "mes" ? 30 : 1;
+    for (let i = 1; i < limite; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      list.push(d.toISOString().split("T")[0]);
+    }
+    return list;
+  };
+
+  const filtroFechas = obtenerFechasPeriodo();
+
+  const turnosCierre = turnos.filter(t => filtroFechas.includes(t.fecha) && (filtroLavadorCierre === "todos" || t.staffId === filtroLavadorCierre));
+  const opsCierre = operationsStaff => operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre));
+
   const liquidacionConsolidada = () => {
     const data = {};
-    STAFF_SEED.forEach(s => {
-      data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0 };
-    });
-
-    turnos.forEach(t => {
-      if (t.estado === "Cobrado (sin rendir)" && data[t.lavadorId]) {
-        data[t.lavadorId].comisiones += t.precio * 0.50; // 50% Comisión
-        data[t.lavadorId].efectivoMano += t.precio;      // Retiene el efectivo cobrado
+    
+    // 1. Inicializar personal sin restricciones meteorológicas externas
+    staff.forEach(s => {
+      if (filtroLavadorCierre === "todos" || s.id === filtroLavadorCierre) {
+        data[s.id] = { id: s.id, nombre: s.nombre, comisiones: 0, efectivoMano: 0, adelantos: 0, propinas: 0 };
       }
     });
 
-    operaciones.forEach(o => {
-      if (o.tipo === "ADELANTO" && data[o.lavadorId]) {
-        data[o.lavadorId].adelantos += o.monto;
+    // 2. Acumular comisiones según método y efectividad real entregada
+    turnosCierre.forEach(t => {
+      if (data[t.staffId]) {
+        const montoBaseComision = (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") 
+          ? (t.montoPagado || 0) 
+          : (t.precio || 0);
+          
+        data[t.staffId].comisiones += montoBaseComision * 0.50; // Comisión fija 50%
+        
+        if (t.metodo === "efectivo" && t.estadoPago === "Cobrado (sin rendir)") {
+          data[t.staffId].efectivoMano += (t.montoPagado || 0);
+        }
+        if (t.destinoSaldo === "propina" && t.diferencia > 0) {
+          data[t.staffId].propinas += t.diferencia;
+        }
+      }
+    });
+
+    // 3. Cruzar Vales y Adelantos Financieros
+    operacionesStaff.filter(o => filtroFechas.includes(o.fecha) && (filtroLavadorCierre === "todos" || o.lavadorId === filtroLavadorCierre)).forEach(o => {
+      if (data[o.lavadorId]) {
+        if (o.tipo.includes("recibe")) { data[o.lavadorId].adelantos += o.monto; }
+        else { data[o.lavadorId].adelantos -= o.monto; }
       }
     });
 
     return Object.values(data);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#02060d] flex items-center justify-center text-cyan-400 font-mono tracking-widest animate-pulse">
-        SISTEMA CARGANDO...
-      </div>
-    );
-  }
-
-  // Mapeamos el listado oficial solicitado
   const listadoJorgeLiq = liquidacionConsolidada();
+  
+  const totalMP = turnosCierre.filter(t => t.metodo === "mp" && t.estadoPago?.includes("Cobrado")).reduce((a, b) => a + (b.montoPagado || 0), 0);
+  const totalEF = turnosCierre.filter(t => t.metodo === "efectivo" && t.estadoPago?.includes("Cobrado")).reduce((a, b) => a + (b.montoPagado || 0), 0);
+  const totalPendientes = turnosCierre.filter(t => t.estadoPago === "Pendiente").length;
 
   return (
-    <div className="min-h-screen bg-[#02060d] text-slate-300 font-sans p-4 space-y-6 selection:bg-cyan-500 selection:text-black">
+    <div className="bg-[#040a14] text-slate-200 min-h-screen font-sans p-4 antialiased">
       
-      {/* HEADER */}
-      <header className="bg-[#040a14] border border-slate-800 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4 shadow-xl shadow-black/40">
+      {/* CONTROL DE CABECERA Y JORNADA OPERATIVA */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4 mb-4">
         <div>
-          <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-            SOFÍA LAVADOS <span className="text-xs bg-cyan-500/10 text-cyan-400 font-mono px-2 py-0.5 rounded-md border border-cyan-500/20">v5.0</span>
-          </h1>
-          <p className="text-xs text-slate-500 font-mono mt-0.5">ADMINISTRACIÓN GEOLOCALIZADA Y CONTROL DE CAJA</p>
+          <h1 className="text-xl font-black text-cyan-400 tracking-tight">SOFÍA LAVADOS SISTEMA v5.0</h1>
+          <p className="text-xs text-slate-500">Módulo de Logística Georeferenciada y Cierre Jorge</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleLluvia}
-            className={`px-4 py-2 rounded-xl text-xs font-bold tracking-wider transition-all duration-300 flex items-center gap-2 border ${
-              configLluvia
-                ? "bg-red-500/20 border-red-500 text-red-400 animate-pulse shadow-lg shadow-red-500/10"
-                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${configLluvia ? "bg-red-500" : "bg-slate-600"}`}></span>
-            {configLluvia ? "ALERTADO POR LLUVIA" : "ESTADO: DESPEJADO"}
-          </button>
-
-          <button
-            onClick={reiniciarTablasSistema}
-            className="bg-slate-950 hover:bg-red-950 border border-slate-800 hover:border-red-900 text-slate-500 hover:text-red-400 p-2 rounded-xl text-xs font-mono transition-all duration-200"
-          >
-            RESET DB
-          </button>
+        
+        <div className="flex flex-wrap gap-2 items-center bg-[#0b1220] p-2 rounded-xl border border-slate-800">
+          <span className="text-[10px] font-bold text-slate-400 px-2">JORNADA:</span>
+          {jornadaEstado === "cerrado" ? (
+            <button className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("abierto")}>Abrir Jornada</button>
+          ) : (
+            <>
+              {jornadaEstado === "abierto" && <button className="bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("lluvia")}>Modo Lluvia</button>}
+              {jornadaEstado === "lluvia" && <button className="bg-amber-500 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg" onClick={ejecutarReanudarClima}>Reanudar Sol</button>}
+              <button className="bg-rose-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onClick={() => cambiarEstadoJornada("cerrado")}>Cerrar Jornada</button>
+            </>
+          )}
         </div>
-      </header>
+      </div>
 
-      {configLluvia && (
-        <div className="bg-gradient-to-r from-red-950 via-slate-950 to-slate-950 border-l-4 border-red-500 p-4 rounded-xl text-xs">
-          <strong className="text-red-400 block font-bold tracking-wide">PROTOCOLO DE INCLEMENCIA CLIMÁTICA ACTIVO</strong>
-          <span className="text-slate-400 block">Sugerencia de negocio: Coordinar con los lavadores activos la pausa de la toma de turnos.</span>
+      {/* PESTAÑAS DE NAVEGACIÓN */}
+      <div className="flex gap-2 overflow-x-auto border-b border-slate-900 pb-2 mb-4 scrollbar-none">
+        <button onClick={() => setTab("grilla")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "grilla" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Turnos</button>
+        <button onClick={() => setTab("cierre")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "cierre" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Cierre de Caja</button>
+        <button onClick={() => setTab("staff")} className={`text-xs font-bold px-4 py-2 rounded-lg shrink-0 transition-colors ${tab === "staff" ? "bg-cyan-950 text-cyan-400 border border-cyan-800/50" : "text-slate-400 hover:text-slate-200"}`}>Personal</button>
+      </div>
+
+      {/* PESTAÑA: GRILLA / CARGA AUTOMÁTICA */}
+      {tab === "grilla" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          
+          {/* PANEL DE ALTA CON NOMINATIM */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 h-fit">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Agendar Nuevo Turno Inteligente</h2>
+            <div className="flex flex-col gap-2.5">
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">CLIENTE</label>
+                <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntCliente} onChange={e => setNtCliente(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">DIRECCIÓN DE TEXTO REAL</label>
+                <input className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntDireccion} onChange={e => setNtDireccion(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">LOCALIDAD / BARRIO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntBarrio} onChange={e => setNtBarrio(e.target.value)}>
+                    <option value="Olivos">Olivos</option>
+                    <option value="Martínez">Martínez</option>
+                    <option value="Florida">Florida</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">BLOQUE HORARIO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntFranja} onChange={e => setNtFranja(e.target.value)}>
+                    {FRANJAS.map(f => <option key={f} value={f}>{f} hs</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">TAMAÑO VEHÍCULO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntTamano} onChange={e => setNtTamano(e.target.value)}>
+                    {TAMANOS_DEFAULT.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">LAVADOR ASIGNADO</label>
+                  <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntLavador} onChange={e => setNtLavador(e.target.value)}>
+                    <option value="">Seleccionar lavador...</option>
+                    {staff.filter(s => jornadaEstado !== "lluvia" || lavadoresRetenidos.includes(s.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">PROPUESTA DE PAGO</label>
+                <select className="w-full bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={ntMetodo} onChange={e => setNtMetodo(e.target.value)}>
+                  <option value="efectivo">Efectivo en mano</option>
+                  <option value="mp">Mercado Pago (Digital)</option>
+                </select>
+              </div>
+              <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded-lg mt-2 transition-colors" onClick={procesarAltaTurno} disabled={geocodificando}>
+                {geocodificando ? "Georeferenciando dirección..." : "Validar Distancia y Guardar"}
+              </button>
+            </div>
+          </div>
+
+          {/* VISTA DE LA GRILLA DE TURNOS CARGADOS */}
+          <div className="lg:col-span-2 bg-[#0b1220] p-4 rounded-xl border border-slate-800">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Monitor Operativo de Turnos</h2>
+            {jornadaEstado === "lluvia" && (
+              <div className="bg-sky-950/40 border border-sky-800/60 p-3 rounded-lg mb-3 text-xs text-sky-300">
+                <strong>Estado de Espera Activo:</strong> El semáforo geográfico opera de forma flexible para reubicaciones
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              {turnos.filter(t => t.fecha === obtenerHoyISO()).length === 0 ? (
+                <div className="text-center text-xs text-slate-600 py-8">No hay turnos registrados en la jornada de hoy.</div>
+              ) : (
+                turnos.filter(t => t.fecha === obtenerHoyISO()).map(t => (
+                  <div key={t.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white">{t.franja} hs</span>
+                        <span className="bg-slate-800 text-[9px] text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">({t.codBarrio})</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.semaforo?.includes("OK") ? "bg-emerald-950 text-emerald-400 border border-emerald-800/30" : "bg-rose-950 text-rose-400 border border-rose-800/30"}`}>{t.semaforo}</span>
+                      </div>
+                      <div className="text-xs font-medium text-slate-300 mt-1">{t.clienteNombre} - <span className="text-slate-500">{t.direccion}</span></div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Asignado: <strong>{t.staffNombre}</strong> ({t.cuadras} cuadras)</div>
+                    </div>
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <div className="text-xs font-black text-cyan-400">{formatP(t.precio)}</div>
+                      <button className={`text-[10px] font-bold px-2 py-1 rounded border ${t.estadoPago?.includes("Cobrado") ? "bg-cyan-950/40 text-cyan-400 border-cyan-800/50" : "bg-slate-900 text-slate-400 border-slate-800"}`} onClick={() => setModalCobroActivo(t)}>
+                        {t.estadoPago || "Registrar Pago"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* GRIDS PRINCIPALES */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* FORMULARIOS (COL IZQUIERDA) */}
-        <section className="lg:col-span-4 space-y-6">
-          <div className="bg-[#040a14] border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white tracking-wide uppercase border-b border-slate-800 pb-2">Despacho de Turno Real</h2>
-            
-            <form onSubmit={procesarAltaTurno} className="space-y-3 text-xs">
-              <div className="space-y-1">
-                <label className="text-slate-400 font-medium">Nombre del Cliente:</label>
-                <input
-                  type="text"
-                  required
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  placeholder="Ej: Carlos Estévez"
-                  className="w-full bg-[#02060d] border border-slate-800 focus:border-cyan-500 rounded-xl p-2.5 text-white outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Tipo de Vehículo:</label>
-                  <select
-                    value={tipoVehiculo}
-                    onChange={(e) => setTipoVehiculo(e.target.value)}
-                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none"
-                  >
-                    <option value="MOTO">MOTO</option>
-                    <option value="AUTO">AUTO</option>
-                    <option value="SUV">SUV</option>
-                    <option value="PICKUP">PICKUP</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Logística / Transporte:</label>
-                  <select
-                    value={transporte}
-                    onChange={(e) => setTransporte(e.target.value)}
-                    className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none"
-                  >
-                    <option value="MOTO">MOTO DEL LAVADOR</option>
-                    <option value="BICICLETA">BICICLETA</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Latitud:</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={latCli}
-                    onChange={(e) => setLatCli(e.target.value)}
-                    placeholder="-34.5062"
-                    className="w-full bg-[#02060d] border border-slate-800 text-white p-2.5 rounded-xl outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-slate-400 font-medium">Longitud:</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={lngCli}
-                    onChange={(e) => setLngCli(e.target.value)}
-                    placeholder="-58.5034"
-                    className="w-full bg-[#02060d] border border-slate-800 text-white p-2.5 rounded-xl outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1 pt-1">
-                <label className="text-slate-400 font-medium">Asignar Operario:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {STAFF_SEED.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setLavadorAsignado(s.id)}
-                      className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                        lavadorAsignado === s.id
-                          ? "bg-slate-900 text-white border-cyan-500 font-bold"
-                          : "bg-transparent text-slate-500 border-slate-800"
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }}></span>
-                      {s.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold p-3 rounded-xl transition-all uppercase tracking-wider font-sans text-center"
-              >
-                Despachar Lavador
-              </button>
-            </form>
+      {/* PESTAÑA: CIERRE CONTABLE (EXCLUSIVA JORGE) */}
+      {tab === "cierre" && (
+        <div className="space-y-4">
+          
+          {/* BOTONES DE RANGO Y FILTROS */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex gap-1.5 bg-[#040a14] p-1 rounded-lg border border-slate-800 w-fit">
+              <button onClick={() => setRangoPeriodo("hoy")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "hoy" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Hoy</button>
+              <button onClick={() => setRangoPeriodo("semana")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "semana" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Semana</button>
+              <button onClick={() => setRangoPeriodo("mes")} className={`text-xs font-bold px-3 py-1.5 rounded-md ${rangoPeriodo === "mes" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"}`}>Mes</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400">LIQUIDAR DE UN TIRÓN:</span>
+              <select className="bg-[#040a14] border border-slate-800 rounded-lg text-xs p-2 text-white outline-none" value={filtroLavadorCierre} onChange={e => setFiltroLavadorCierre(e.target.value)}>
+                <option value="todos">Todos los lavadores</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            </div>
           </div>
 
-          <button
-            onClick={() => setModalValeActivo(true)}
-            className="w-full bg-[#040a14] border border-slate-800 text-slate-300 font-bold p-3 rounded-2xl text-xs flex items-center justify-center gap-2 hover:bg-slate-900 transition-all"
-          >
-            💸 REGISTRAR VALE / ADELANTO DE CAJA
-          </button>
-        </section>
+          {/* TARJETAS DE TOTALES BRUTOS */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Efectivo</div>
+              <div className="text-xl font-black text-emerald-400 mt-1">{formatP(totalEF)}</div>
+            </div>
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-cyan-900/40 bg-gradient-to-br from-cyan-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recaudación Mercado Pago</div>
+              <div className="text-xl font-black text-cyan-400 mt-1">{formatP(totalMP)}</div>
+            </div>
+            <div className="bg-[#0b1220] p-4 rounded-xl border border-amber-900/40 bg-gradient-to-br from-amber-950/10 to-transparent">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Turnos sin Cobrar Pendientes</div>
+              <div className="text-xl font-black text-amber-400 mt-1">{totalPendientes} servicios</div>
+            </div>
+          </div>
 
-        {/* MONITOR Y LIQUIDACIÓN (COL DERECHA) */}
-        <section className="lg:col-span-8 space-y-6">
-          
-          <div className="bg-[#040a14] border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white tracking-wide uppercase border-b border-slate-800 pb-2 flex items-center justify-between">
-              <span>Monitor de Flujo de Trabajo</span>
-              <span className="text-xs font-mono text-slate-500">{turnos.length} turnos</span>
-            </h2>
-
-            {turnos.length === 0 ? (
-              <div className="text-center py-8 text-xs font-mono text-slate-600">NO HAY TURNOS REGISTRADOS</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {turnos.map((t) => {
-                  const lav = STAFF_SEED.find((s) => s.id === t.lavadorId) || { nombre: "Operario", color: "#64748b" };
-                  let semColor = "bg-green-500/10 text-green-400 border-green-500/20";
-                  if (t.semaforoGeografico === "LEJOS") semColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-                  if (t.semaforoGeografico === "MUY LEJOS") semColor = "bg-red-500/10 text-red-400 border-red-500/20";
-
+          {/* TABLA DE LIQUIDACIÓN INDIVIDUAL (JORGE) */}
+          <div className="bg-[#0b1220] p-4 rounded-xl border border-slate-800 overflow-x-auto">
+            <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Planilla de Saldos y Comisiones</h2>
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-500 font-bold">
+                  <th className="pb-2">LAVADOR</th>
+                  <th className="pb-2">COMISIONES (50%)</th>
+                  <th className="pb-2">EFECTIVO EN MANO</th>
+                  <th className="pb-2">ADELANTOS / VALES</th>
+                  <th className="pb-2 text-right">SALDO A TRANSFERIR (MP)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listadoJorgeLiq.map(row => {
+                  const saldoFinalATransferir = row.comisiones - row.efectivoMano - row.adelantos;
                   return (
-                    <div key={t.id} className="bg-[#02060d] border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-1.5 h-full" style={{ backgroundColor: lav.color }}></div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between items-start">
-                          <strong className="text-sm font-bold text-white">{t.clienteNombre}</strong>
-                          <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${semColor}`}>
-                            {t.semaforoGeografico} ({t.cuadrasBase}c)
-                          </span>
-                        </div>
-                        <p className="text-slate-400">{t.tipoVehiculo} — En {t.transporte}</p>
-                        <p className="text-slate-500 text-[11px]">Asignado: <strong className="text-slate-300">{lav.nombre}</strong></p>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-900/60 flex items-center justify-between">
-                        <span className="text-cyan-400 font-black font-mono text-sm">{formatP(t.precio)}</span>
-                        {t.state === "Cobrado (sin rendir)" || t.estado === "Cobrado (sin rendir)" ? (
-                          <span className="text-[10px] bg-slate-900 text-emerald-400 border border-emerald-500/20 font-mono font-bold px-2 py-1 rounded-md">
-                            ✓ COBRADO
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => setModalCobroActivo(t)}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[11px] px-3 py-1.5 rounded-lg transition-all"
-                          >
-                            Rendir Turno
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <tr key={row.id} className="border-b border-slate-900 hover:bg-slate-950/40">
+                      <td className="py-2.5 font-bold text-white">{row.nombre}</td>
+                      <td className="py-2.5 text-slate-300">{formatP(row.comisiones)}</td>
+                      <td className="py-2.5 text-rose-400">{formatP(row.efectivoMano)}</td>
+                      <td className="py-2.5 text-amber-400">{formatP(row.adelantos)}</td>
+                      <td className={`py-2.5 text-right font-black ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
+                        {formatP(saldoFinalATransferir)}
+                      </td>
+                    </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PESTAÑA: CONFIGURACIÓN DE STAFF */}
+      {tab === "staff" && (
+        <div className="bg-[#061220] p-4 rounded-xl border border-slate-800">
+          <h2 className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">Registro de Estado Personal & Adelantos</h2>
+          {jornadaEstado === "lluvia" && (
+            <p className="text-[11px] text-amber-400 mb-3">▲ Tildá a los lavadores que <strong>se quedaron en base</strong> tomando la guardia pasiva.</p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {staff.map(s => (
+              <div key={s.id} className="bg-[#040a14] border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  {jornadaEstado === "lluvia" && (
+                    <input type="checkbox" checked={lavadoresRetenidos.includes(s.id)} onChange={() => switchLavadorRetenido(s.id)} />
+                  )}
+                  <div>
+                    <span className="text-xs font-bold text-white block">{s.nombre}</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-mono">{s.transporte} • {s.rol}</span>
+                  </div>
+                </div>
+                <button className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-bold px-3 py-1.5 rounded-lg" onClick={() => setModalStaffActivo(s)}>
+                  Registrar Vale / Adelanto
+                </button>
               </div>
-            )}
+            ))}
           </div>
+        </div>
+      )}
 
-          {/* MÓDULO CONTABLE EXCLUSIVO DE JORGE */}
-          <div className="bg-[#040a14] border border-slate-800 p-5 rounded-2xl space-y-4 shadow-xl">
-            <div>
-              <h2 className="text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                <span>📊</span> Módulo Contable de Jorge (Planilla de Cierres)
-              </h2>
-              <p className="text-xs text-slate-500 font-mono mt-0.5">Liquidación consolidada según cobros efectivos</p>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-mono">
-                    <th className="py-2.5 font-medium">Lavador</th>
-                    <th className="py-2.5 font-medium">Comisión (50%)</th>
-                    <th className="py-2.5 font-medium">Efectivo en Mano</th>
-                    <th className="py-2.5 font-medium">Vales/Adelantos</th>
-                    <th className="py-2.5 font-medium text-right text-cyan-400">Saldo a Transferir</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-900">
-                  {listadoJorgeLiq.map(row => {
-                    // Cálculo limpio del Saldo final a Transferir digitalmente
-                    const saldoFinalATransferir = row.comisiones - row.efectivoMano - row.adelantos;
-                    
-                    return (
-                      <tr key={row.id} className="border-b border-slate-900 hover:bg-slate-950/40 font-mono">
-                        <td className="py-2.5 font-sans font-bold text-white">{row.nombre}</td>
-                        <td className="py-2.5 text-slate-300">{formatP(row.comisiones)}</td>
-                        <td className="py-2.5 text-rose-400">{formatP(row.efectivoMano)}</td>
-                        <td className="py-2.5 text-amber-400">{formatP(row.adelantos)}</td>
-                        <td className={`py-2.5 text-right font-black text-sm ${saldoFinalATransferir >= 0 ? "text-cyan-400" : "text-rose-400"}`}>
-                          {formatP(saldoFinalATransferir)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="bg-[#02060d] border border-slate-800/80 p-3 rounded-xl text-[11px] text-slate-500 font-mono flex items-start gap-2">
-              <span className="text-cyan-400 text-xs">ℹ</span>
-              <p>Saldo positivo: Dinero neto a transferir por Mercado Pago al operario. Saldo negativo (en rojo): El operario retuvo más efectivo en mano de sus turnos del que le correspondía por comisiones, debiendo rendir la diferencia.</p>
-            </div>
-          </div>
-
-        </section>
-      </main>
-
-      {/* MODAL COBRO */}
+      {/* INTERFACES DE MODALES (COBRO Y ADELANTOS STAFF) */}
       {modalCobroActivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalCobroActivo(null)}>
-          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={() => setModalCobroActivo(null)}>
+          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white">Rendición de Turno: {modalCobroActivo.clienteNombre}</h3>
             <div className="bg-[#040a14] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
               <span className="text-slate-400">Esperado Original:</span>
-              <strong className="text-cyan-400 text-sm font-black font-mono">{formatP(modalCobroActivo.precio)}</strong>
+              <strong className="text-cyan-400 text-sm font-black">{formatP(modalCobroActivo.precio)}</strong>
             </div>
-            <div className="space-y-2">
-              <button
-                onClick={() => confirmarRendicionCobro(modalCobroActivo.precio)}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold p-2.5 rounded-xl text-xs uppercase"
-              >
-                Confirmar Cobro Completo
-              </button>
-              <button
-                onClick={() => setModalCobroActivo(null)}
-                className="w-full bg-slate-950 text-slate-400 p-2.5 rounded-xl text-xs font-mono"
-              >
-                Cancelar Cierre
-              </button>
+            <div className="flex justify-end gap-2 text-xs">
+              <button className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg" onClick={() => setModalCobroActivo(null)}>Cancelar</button>
+              <button className="bg-cyan-600 text-white font-bold px-4 py-1.5 rounded-lg" onClick={() => ejecutarCobroFinal(modalCobroActivo, modalCobroActivo.precio, 0, "", "caja")}>Confirmar Cobro Completo</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL VALES */}
-      {modalValeActivo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setModalValeActivo(false)}>
-          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-white">Registrar Vale / Adelanto de Caja</h3>
-            <form onSubmit={registrarValeAdelanto} className="space-y-3 text-xs">
-              <div className="space-y-1">
-                <label className="text-slate-400">Seleccionar Lavador:</label>
-                <select
-                  value={valeLavador}
-                  onChange={(e) => setValeLavador(e.target.value)}
-                  className="w-full bg-[#02060d] border border-slate-800 text-white rounded-xl p-2.5 outline-none"
-                >
-                  {STAFF_SEED.map(s => (
-                    <option key={s.id} value={s.id}>{s.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-slate-400">Monto del Adelanto ($):</label>
-                <input
-                  type="number"
-                  required
-                  value={valeMonto}
-                  onChange={(e) => setValeMonto(e.target.value)}
-                  placeholder="Monto en pesos"
-                  className="w-full bg-[#02060d] border border-slate-800 p-2.5 rounded-xl text-white font-mono outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-slate-400">Motivo (Opcional):</label>
-                <input
-                  type="text"
-                  value={valeMotivo}
-                  onChange={(e) => setValeMotivo(e.target.value)}
-                  placeholder="Ej: Nafta o viáticos"
-                  className="w-full bg-[#02060d] border border-slate-800 p-2.5 rounded-xl text-white outline-none"
-                />
-              </div>
-              <div className="pt-2 grid grid-cols-2 gap-3">
-                <button type="submit" className="bg-cyan-500 text-black font-bold p-2.5 rounded-xl">Confirmar Vale</button>
-                <button type="button" onClick={() => setModalValeActivo(false)} className="bg-slate-950 text-slate-400 p-2.5 rounded-xl font-mono">Cerrar</button>
-              </div>
-            </form>
+      {modalStaffActivo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in" onClick={() => setModalStaffActivo(null)}>
+          <div className="bg-[#061220] border border-slate-800 p-5 rounded-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-white">Registrar Movimiento: {modalStaffActivo.nombre}</h3>
+            <div className="flex justify-end gap-2 text-xs">
+              <button className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg" onClick={() => setModalStaffActivo(null)}>Cancelar</button>
+              <button className="bg-amber-600 text-slate-950 font-bold px-4 py-1.5 rounded-lg" onClick={() => ejecutarMovimientoStaff(modalStaffActivo, 1000, "Adelanto de sueldo (lavador recibe)")}>Registrar Vale Base ($1.000)</button>
+            </div>
           </div>
         </div>
       )}
